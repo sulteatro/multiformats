@@ -1,0 +1,68 @@
+name: CI
+
+env:
+  JDK_JAVA_OPTIONS: -XX:+PrintCommandLineFlags
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+  release:
+    types:
+      - published
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          check-latest: true
+
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
+      - name: Cache scala dependencies
+        uses: coursier/cache-action@v6
+      - name: Lint code
+        run: sbt ++3.7.3 scalafmtCheckAll scalafixAll
+
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ["11", "17"]
+        scala: ["3.7.3"]
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          check-latest: true
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
+      - name: Cache scala dependencies
+        uses: coursier/cache-action@v6
+      - name: Run tests
+        run: sbt ++${{ matrix.scala }}! test
+
+  ci:
+    runs-on: ubuntu-24.04
+    needs: [lint, test]
+    steps:
+      - name: All CI tasks (lint, test)
+        run: echo "CI passed"

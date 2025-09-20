@@ -28,9 +28,10 @@ object array:
 
       override def apply(index: Int): V = data(index)
       override def map[W: ClassTag](fn: V => W): SizedArray[Size, W] = Elem[Prev, W](data.map(fn))
-      override def contains[T >: V: ClassTag](elem: T): Boolean = elem match
-        case summon[ClassTag[V]](vElem) => data.contains(vElem)
-        case _                          => false
+      override def contains[T >: V: ClassTag](elem: T): Boolean =
+        elem match
+          case summon[ClassTag[V]](vElem) => data.contains(vElem)
+          case _                          => false
 
       override def toArray[T >: V: ClassTag]: Array[T] = Array.from(data)
       override def toString: String = s"Array(${data.mkString(", ")})"
