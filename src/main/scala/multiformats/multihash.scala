@@ -243,3 +243,5 @@ object multihash:
             mhs.decode * 8,
             new String(Base16.encode(mhd))
           ).mkString("-")
+        case (ba, via) =>
+          throw MultihashValidationError(s"Unreachable case, bytes: ${ba}, varints: ${via}")

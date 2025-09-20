@@ -1,5 +1,5 @@
 import sbt.{AutoPlugin, taskKey}
-import io.Source
+import scala.io.Source
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Paths
