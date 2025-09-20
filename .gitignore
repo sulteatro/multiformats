@@ -1,0 +1,25 @@
+# scala-cli, bloop, metals
+.bsp/
+.bloop/
+.metals/
+.scala-build/
+project/metals.sbt
+
+# scala 3
+.tasty
+
+# sbt
+project/project/
+project/target/
+target/
+
+# mac
+.DS_Store
+
+# other
+.history
+.scala_dependencies
+.cache-main
+
+# general
+*.class
