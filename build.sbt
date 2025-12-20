@@ -14,6 +14,7 @@ lazy val root = project
   .settings(
     name := "multiformats",
     version := "0.0.1",
+    organization := "org.sulteatro",
     scalacOptions ++= Seq(
       "-feature",
       "-deprecation",
@@ -23,7 +24,8 @@ lazy val root = project
     libraryDependencies ++= Seq(
       "org.scalameta" %% "munit" % "1.0.0" % Test,
       "org.bouncycastle" % "bcprov-jdk18on" % "1.80"
-    )
+    ),
+    packageSrc / publishArtifact := true
   )
 
 // Corrects a bug in tab completion in sbt console - see link to joern-cli
