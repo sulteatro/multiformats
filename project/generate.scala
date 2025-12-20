@@ -52,7 +52,7 @@ object GenerateTasks extends AutoPlugin {
 
     Files.write(
       Paths.get(filename),
-      (prefix + "\n" + code + "\n" + suffix).getBytes(StandardCharsets.UTF_8)
+      (prefix + "\n" + code + "\n" + suffix + "\n").getBytes(StandardCharsets.UTF_8)
     )
   }
 
