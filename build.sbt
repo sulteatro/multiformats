@@ -11,6 +11,32 @@ inThisBuild(
 
 lazy val root = project
   .in(file("."))
+  .aggregate(milletre, multiformats)
+  .settings(
+    publish / skip := true
+  )
+
+lazy val milletre = project
+  .in(file("milletre"))
+  .settings(
+    name := "milletre",
+    version := "0.0.1",
+    organization := "org.sulteatro",
+    scalacOptions ++= Seq(
+      "-feature",
+      "-deprecation",
+      "-Wunused:imports",
+      "-source:3.7"
+    ),
+    libraryDependencies ++= Seq(
+      "org.scalameta" %% "munit" % "1.0.0" % Test
+    ),
+    packageSrc / publishArtifact := true
+  )
+
+lazy val multiformats = project
+  .in(file("multiformats"))
+  .dependsOn(milletre)
   .settings(
     name := "multiformats",
     version := "0.0.1",

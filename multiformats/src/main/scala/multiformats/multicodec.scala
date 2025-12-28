@@ -1,5 +1,6 @@
 package multiformats
 
+import milletre.generator.{EnumField, EnumGenerator, spliceInto}
 import multiformats.varint.VarInt
 
 final case class MulticodecValidationError(
@@ -686,3 +687,30 @@ object multicodec:
       c.convert(value).toOption
     def apply[T](value: T)(using c: MulticodecFactory[T]): Multicodec =
       c.convert(value).fold(error => throw MulticodecValidationError(error), x => x)
+
+@main def generateMulticodec(): Unit =
+  val enumName = "Multicodec"
+  val taskName = s"generate${enumName}"
+  // val targetFile: String = "src/main/scala/multiformats/multicodec.scala"
+
+  val multicodecGenerator: EnumGenerator = new EnumGenerator(
+    "https://raw.githubusercontent.com/multiformats/multicodec/refs/heads/master/table.csv"
+  )
+
+  val multicodecTagEnumCode = multicodecGenerator(s"${enumName}Tag", "tag")
+  val multicodecStatusEnumCode = multicodecGenerator(s"${enumName}Status", "tag")
+
+  val multicodecFields: Seq[EnumField] = Seq(
+    EnumField("tag", s"${enumName}Tag", true),
+    EnumField("code", "VarInt", false, Some(v => s"VarInt.encode($v)")),
+    EnumField("status", s"${enumName}Status", true),
+    EnumField("description", "Option[String]", false)
+  )
+  val multicodecEnumCode = multicodecGenerator(enumName, "name", Some(multicodecFields))
+
+  val targetFile: String = new java.io.File(".").getCanonicalPath
+  spliceInto(
+    targetFile,
+    taskName,
+    Vector(multicodecTagEnumCode, multicodecStatusEnumCode, multicodecEnumCode)
+  )
