@@ -1,14 +1,8 @@
 package multiformats
 
-import multiformats.multibase.BaseAlgorithm
-import multiformats.multibase.Multibase
-import multiformats.multibase.MultibaseFactory
-import multiformats.multicodec.Multicodec
-import multiformats.multicodec.MulticodecFactory
-import multiformats.multicodec.MulticodecTag
-import multiformats.multihash.HashAlgorithm
-import multiformats.multihash.Multihash
-import multiformats.multihash.MultihashFactory
+import multiformats.multibase.*
+import multiformats.multicodec.*
+import multiformats.multihash.*
 import multiformats.varint.VarInt
 
 final case class CIDValidationError(
@@ -62,11 +56,11 @@ object cid:
     Multihash.digestValidated(content, hashAlgorithm).map(buildCID(contentType, _)).joinRight
 
   private def translateCID(hr: String)(using
-      MultibaseFactory[Array[Byte], BaseAlgorithm]
+      MultibaseFactory[Array[Byte], MultibaseAlgorithm]
   ): Either[String, Multibase] =
     hr.split(" - ") match
       case Array(baseName, cidCodec, typeName, address) if cidCodec.equals(version.toString) =>
-        BaseAlgorithm.byName(baseName).map { baseAlgorithm =>
+        MultibaseAlgorithm.byName(baseName).map { baseAlgorithm =>
           Multicodec.validated(typeName).map { contentType =>
             Multihash.validated(address).map { contentAddress =>
               buildCID(contentType, contentAddress).map(
@@ -346,7 +340,7 @@ object cid:
     def codec: Multicodec = version
     def contentType: Multicodec = parseCID(cidEncoded.decode).map(_.head).toOption.get
     def address: Multihash = parseCID(cidEncoded.decode).map(_.last).toOption.get
-    def encoding: BaseAlgorithm = BaseAlgorithm.byChar(cidEncoded.prefix).toOption.get
+    def encoding: MultibaseAlgorithm = MultibaseAlgorithm.byChar(cidEncoded.prefix).toOption.get
 
     def toHumanReadable: String =
       Vector(
