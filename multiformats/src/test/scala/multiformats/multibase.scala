@@ -1,5 +1,6 @@
 package multiformats.multibase
 
+import milletre.constructor.ValidationError
 import multiencoder.encoder.*
 import multiencoder.encoding.Encoding
 
@@ -48,39 +49,32 @@ class MultibaseTests extends munit.FunSuite:
   test("Multibase.validated(String) returns Right[Multibase] for valid strings"):
     validMultibases.keys.foreach { value =>
       assertEquals(Multibase.validated(value).map(_.toString), Right(value))
-      assertEquals(Multibase.validated(value.getBytes).map(_.toString), Right(value))
     }
 
   test("Multibase.validated(String) returns Left[String] for invalid or unparseable strings"):
     invalidMultibases.foreach { case (value, msg) =>
       assertEquals(Multibase.validated(value).map(_.toString), Left(msg))
-      assertEquals(Multibase.validated(value.getBytes).map(_.toString), Left(msg))
     }
 
   test("Multibase.ifValid(String) returns Some[Multibase] for valid strings"):
     validMultibases.keys.foreach { value =>
       assertEquals(Multibase.ifValid(value).map(_.toString), Some(value))
-      assertEquals(Multibase.ifValid(value.getBytes).map(_.toString), Some(value))
     }
 
   test("Multibase.ifValid(String) returns None for invalid or unparseable strings"):
     invalidMultibases.foreach { case (value, msg) =>
       assertEquals(Multibase.ifValid(value).map(_.toString), None)
-      assertEquals(Multibase.ifValid(value.getBytes).map(_.toString), None)
     }
 
   test("Multibase(String) returns Multibase for valid strings"):
     validMultibases.keys.foreach { value =>
       assertEquals(Multibase(value).toString, value)
-      assertEquals(Multibase(value.getBytes).toString, value)
     }
 
   test("Multibase(String) throws for invalid or unparseable strings"):
     invalidMultibases.foreach { case (value, msg) =>
-      interceptMessage[MultibaseValidationError](msg):
+      interceptMessage[ValidationError[Multibase]](msg):
         Multibase(value)
-      interceptMessage[MultibaseValidationError](msg):
-        Multibase(value.getBytes)
     }
 
   test(
@@ -89,11 +83,8 @@ class MultibaseTests extends munit.FunSuite:
     validMultibases
       .foreach { case (value, (code, _)) =>
         val (data, char, name) = (value.drop(1), code.character, code.toString)
-        assertEquals(Multibase.validated(data, code).map(_.toString), Right(value))
         assertEquals(Multibase.validated(data.getBytes, code).map(_.toString), Right(value))
-        assertEquals(Multibase.validated(data, char).map(_.toString), Right(value))
         assertEquals(Multibase.validated(data.getBytes, char).map(_.toString), Right(value))
-        assertEquals(Multibase.validated(data, name).map(_.toString), Right(value))
         assertEquals(Multibase.validated(data.getBytes, name).map(_.toString), Right(value))
       }
 
@@ -102,14 +93,11 @@ class MultibaseTests extends munit.FunSuite:
   ):
     invalidMultibases
       .flatMap { case (value, msg) =>
-        MultibaseAlgorithm.byChar(value.take(1)).toOption.map((value.drop(1), _, msg))
+        MultibaseAlgorithm.getByChar(value.take(1)).toOption.map((value.drop(1), _, msg))
       }.foreach { case (value, code, msg) =>
         val (char, name) = (code.character, code.toString)
-        assertEquals(Multibase.validated(value, code).map(_.toString), Left(msg))
         assertEquals(Multibase.validated(value.getBytes, code).map(_.toString), Left(msg))
-        assertEquals(Multibase.validated(value, char).map(_.toString), Left(msg))
         assertEquals(Multibase.validated(value.getBytes, char).map(_.toString), Left(msg))
-        assertEquals(Multibase.validated(value, name).map(_.toString), Left(msg))
         assertEquals(Multibase.validated(value.getBytes, name).map(_.toString), Left(msg))
       }
 
@@ -119,11 +107,8 @@ class MultibaseTests extends munit.FunSuite:
     validMultibases
       .foreach { case (value, (code, _)) =>
         val (data, char, name) = (value.drop(1), code.character, code.toString)
-        assertEquals(Multibase.ifValid(data, code).map(_.toString), Some(value))
         assertEquals(Multibase.ifValid(data.getBytes, code).map(_.toString), Some(value))
-        assertEquals(Multibase.ifValid(data, char).map(_.toString), Some(value))
         assertEquals(Multibase.ifValid(data.getBytes, char).map(_.toString), Some(value))
-        assertEquals(Multibase.ifValid(data, name).map(_.toString), Some(value))
         assertEquals(Multibase.ifValid(data.getBytes, name).map(_.toString), Some(value))
       }
 
@@ -132,14 +117,11 @@ class MultibaseTests extends munit.FunSuite:
   ):
     invalidMultibases
       .flatMap { case (value, msg) =>
-        MultibaseAlgorithm.byChar(value.take(1)).toOption.map((value.drop(1), _, msg))
+        MultibaseAlgorithm.getByChar(value.take(1)).toOption.map((value.drop(1), _, msg))
       }.foreach { case (value, code, msg) =>
         val (char, name) = (code.character, code.toString)
-        assertEquals(Multibase.ifValid(value, code).map(_.toString), None)
         assertEquals(Multibase.ifValid(value.getBytes, code).map(_.toString), None)
-        assertEquals(Multibase.ifValid(value, char).map(_.toString), None)
         assertEquals(Multibase.ifValid(value.getBytes, char).map(_.toString), None)
-        assertEquals(Multibase.ifValid(value, name).map(_.toString), None)
         assertEquals(Multibase.ifValid(value.getBytes, name).map(_.toString), None)
       }
 
@@ -149,31 +131,22 @@ class MultibaseTests extends munit.FunSuite:
     validMultibases
       .foreach { case (value, (code, _)) =>
         val (data, char, name) = (value.drop(1), code.character, code.toString)
-        assertEquals(Multibase(data, code).toString, value)
         assertEquals(Multibase(data.getBytes, code).toString, value)
-        assertEquals(Multibase(data, char).toString, value)
         assertEquals(Multibase(data.getBytes, char).toString, value)
-        assertEquals(Multibase(data, name).toString, value)
         assertEquals(Multibase(data.getBytes, name).toString, value)
       }
 
   test("Multibase(String|Array[Byte], MultibaseAlgorithm|String) throws for invalid inputs"):
     invalidMultibases
       .flatMap { case (value, msg) =>
-        MultibaseAlgorithm.byChar(value.take(1)).toOption.map((value.drop(1), _, msg))
+        MultibaseAlgorithm.getByChar(value.take(1)).toOption.map((value.drop(1), _, msg))
       }.foreach { case (value, code, msg) =>
         val (char, name) = (code.character, code.toString)
-        interceptMessage[MultibaseValidationError](msg):
-          Multibase(value, code).toString
-        interceptMessage[MultibaseValidationError](msg):
+        interceptMessage[ValidationError[Multibase]](msg):
           Multibase(value.getBytes, code).toString
-        interceptMessage[MultibaseValidationError](msg):
-          Multibase(value, char).toString
-        interceptMessage[MultibaseValidationError](msg):
+        interceptMessage[ValidationError[Multibase]](msg):
           Multibase(value.getBytes, char).toString
-        interceptMessage[MultibaseValidationError](msg):
-          Multibase(value, name).toString
-        interceptMessage[MultibaseValidationError](msg):
+        interceptMessage[ValidationError[Multibase]](msg):
           Multibase(value.getBytes, name).toString
       }
 
@@ -182,11 +155,8 @@ class MultibaseTests extends munit.FunSuite:
   ):
     validMultibases.foreach { case (value, (code, _)) =>
       val (char, name) = (code.character, code.toString)
-      assertEquals(Multibase.encodeValidated(source, code).map(_.toString), Right(value))
       assertEquals(Multibase.encodeValidated(source.getBytes, code).map(_.toString), Right(value))
-      assertEquals(Multibase.encodeValidated(source, char).map(_.toString), Right(value))
       assertEquals(Multibase.encodeValidated(source.getBytes, char).map(_.toString), Right(value))
-      assertEquals(Multibase.encodeValidated(source, name).map(_.toString), Right(value))
       assertEquals(Multibase.encodeValidated(source.getBytes, name).map(_.toString), Right(value))
     }
 
@@ -195,14 +165,11 @@ class MultibaseTests extends munit.FunSuite:
   ):
     invalidPrefixes
       .flatMap { case (value, msg) =>
-        MultibaseAlgorithm.byChar(value.take(1)).toOption.map((_, msg))
+        MultibaseAlgorithm.getByChar(value.take(1)).toOption.map((_, msg))
       }.foreach { case (code, msg) =>
         val (char, name) = (code.character, code.toString)
-        assertEquals(Multibase.encodeValidated(source, code).map(_.toString), Left(msg))
         assertEquals(Multibase.encodeValidated(source.getBytes, code).map(_.toString), Left(msg))
-        assertEquals(Multibase.encodeValidated(source, char).map(_.toString), Left(msg))
         assertEquals(Multibase.encodeValidated(source.getBytes, char).map(_.toString), Left(msg))
-        assertEquals(Multibase.encodeValidated(source, name).map(_.toString), Left(msg))
         assertEquals(Multibase.encodeValidated(source.getBytes, name).map(_.toString), Left(msg))
       }
 
@@ -211,11 +178,8 @@ class MultibaseTests extends munit.FunSuite:
   ):
     validMultibases.foreach { case (value, (code, _)) =>
       val (char, name) = (code.character, code.toString)
-      assertEquals(Multibase.encodeIfValid(source, code).map(_.toString), Some(value))
       assertEquals(Multibase.encodeIfValid(source.getBytes, code).map(_.toString), Some(value))
-      assertEquals(Multibase.encodeIfValid(source, char).map(_.toString), Some(value))
       assertEquals(Multibase.encodeIfValid(source.getBytes, char).map(_.toString), Some(value))
-      assertEquals(Multibase.encodeIfValid(source, name).map(_.toString), Some(value))
       assertEquals(Multibase.encodeIfValid(source.getBytes, name).map(_.toString), Some(value))
     }
 
@@ -224,14 +188,11 @@ class MultibaseTests extends munit.FunSuite:
   ):
     invalidPrefixes
       .flatMap { case (value, msg) =>
-        MultibaseAlgorithm.byChar(value.take(1)).toOption.map((_, msg))
+        MultibaseAlgorithm.getByChar(value.take(1)).toOption.map((_, msg))
       }.foreach { case (code, msg) =>
         val (char, name) = (code.character, code.toString)
-        assertEquals(Multibase.encodeIfValid(source, code).map(_.toString), None)
         assertEquals(Multibase.encodeIfValid(source.getBytes, code).map(_.toString), None)
-        assertEquals(Multibase.encodeIfValid(source, char).map(_.toString), None)
         assertEquals(Multibase.encodeIfValid(source.getBytes, char).map(_.toString), None)
-        assertEquals(Multibase.encodeIfValid(source, name).map(_.toString), None)
         assertEquals(Multibase.encodeIfValid(source.getBytes, name).map(_.toString), None)
       }
 
@@ -240,40 +201,31 @@ class MultibaseTests extends munit.FunSuite:
   ):
     validMultibases.foreach { case (value, (code, _)) =>
       val (char, name) = (code.character, code.toString)
-      assertEquals(Multibase.encode(source, code).toString, value)
       assertEquals(Multibase.encode(source.getBytes, code).toString, value)
-      assertEquals(Multibase.encode(source, char).toString, value)
       assertEquals(Multibase.encode(source.getBytes, char).toString, value)
-      assertEquals(Multibase.encode(source, name).toString, value)
       assertEquals(Multibase.encode(source.getBytes, name).toString, value)
     }
 
   test("Multibase.encode(String|Array[Byte], MultibaseAlgorithm|String) throws on failure"):
     invalidPrefixes
       .flatMap { case (value, msg) =>
-        MultibaseAlgorithm.byChar(value.take(1)).toOption.map((_, msg))
+        MultibaseAlgorithm.getByChar(value.take(1)).toOption.map((_, msg))
       }.foreach { case (code, msg) =>
         val (char, name) = (code.character, code.toString)
-        interceptMessage[MultibaseValidationError](msg):
-          Multibase.encode(source, code).toString
-        interceptMessage[MultibaseValidationError](msg):
+        interceptMessage[ValidationError[Multibase]](msg):
           Multibase.encode(source.getBytes, code).toString
-        interceptMessage[MultibaseValidationError](msg):
-          Multibase.encode(source, char).toString
-        interceptMessage[MultibaseValidationError](msg):
+        interceptMessage[ValidationError[Multibase]](msg):
           Multibase.encode(source.getBytes, char).toString
-        interceptMessage[MultibaseValidationError](msg):
-          Multibase.encode(source, name).toString
-        interceptMessage[MultibaseValidationError](msg):
+        interceptMessage[ValidationError[Multibase]](msg):
           Multibase.encode(source.getBytes, name).toString
       }
 
   test("Multibase congruency (=~, !~) is just typed (in)equality"):
     validMultibases.keys.foreach { value =>
       val mb = Multibase(value)
-      assert(mb =~ Multibase(value.drop(1), value.take(1)))
-      assert(mb =~ Multibase.encode(source, value.take(1)))
-      assert(mb !~ Multibase.encode(source ++ "bar", value.take(1)))
+      assert(mb =~ Multibase(value.drop(1).getBytes, value.take(1)))
+      assert(mb =~ Multibase.encode(source.getBytes, value.take(1)))
+      assert(mb !~ Multibase.encode((source ++ "bar").getBytes, value.take(1)))
     }
 
   test("Multibase congruency (=~, !~) does not compile for other types (including String)"):
@@ -328,5 +280,5 @@ class MultibaseTests extends munit.FunSuite:
 
   test("String context prefix 'mb' returns a Multibase object"):
     assertEquals(mb"bmzxw6", Multibase("bmzxw6"))
-    interceptMessage[MultibaseValidationError]("Invalid encoding characters"):
+    interceptMessage[ValidationError[Multibase]]("Invalid encoding characters"):
       mb"vCPNMU"

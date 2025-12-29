@@ -4,12 +4,8 @@ import multiencoder.encoder.*
 import multiencoder.encoding.Encoding
 import multiformats.varint.VarInt
 
-import java.nio.charset.StandardCharsets
-
-final case class MultibaseValidationError(
-    private val message: String = "",
-    private val cause: Throwable = None.orNull
-) extends Exception(message, cause)
+import milletre.utilities.*
+import milletre.constructor.*
 
 // format: off
 // generateMultibase: begin //
@@ -76,136 +72,78 @@ enum MultibaseAlgorithm(val unicode: Int, val description: Option[String], val s
       case MultibaseAlgorithm.base64urlpad      => Right(Base64UrlPad)
       case code => Left(s"Multibase encoding not implemented: '$code'")
 
+  def validate(bytes: Array[Byte]): Either[String, Array[Byte]] = encoder.flatMap(_.validate(bytes))
+  def encode(bytes: Array[Byte]): Either[String, String] = encoder.map(_.encode(bytes))
+
 object MultibaseAlgorithm:
   private lazy val nameToAlgorithm = MultibaseAlgorithm.values.map(a => a.toString -> a).toMap
 
-  def byName(name: String): Either[String, MultibaseAlgorithm] =
-    nameToAlgorithm.get(name.toLowerCase).toRight(s"Unsupported multibase codec name: '$name'")
-
   private lazy val charToAlgorithm = MultibaseAlgorithm.values.map(a => a.character -> a).toMap
 
-  def byChar(char: String): Either[String, MultibaseAlgorithm] =
+  def getByName(name: String): Either[String, MultibaseAlgorithm] =
+    nameToAlgorithm.get(name.toLowerCase).toRight(s"Unsupported multibase codec name: '$name'")
+
+  def getByChar(char: String): Either[String, MultibaseAlgorithm] =
     charToAlgorithm.get(char).toRight(s"Unsupported multibase prefix character: '$char'")
 
-  def byCode(code: VarInt): Either[String, MultibaseAlgorithm] =
-    val char: String = new String(BigInt(code.decode).toByteArray, StandardCharsets.UTF_8)
-    charToAlgorithm.get(
-      char
-    ).toRight(s"Unsupported multibase prefix code: '${code.toHex}' ($char)")
+  def getByCode(code: VarInt): Either[String, MultibaseAlgorithm] =
+    val char: String = BigInt(code.decode).toByteArray.toUtf8
+    charToAlgorithm.get(char).toRight(s"Unsupported multibase prefix code: '${code.toHex}' ($char)")
 
 //
-// Implementation details:
-// * extractFromBytes attempts to extract a varint from a byte array starting at `start`
-// * encodeFromLong attempts to encode an integer as a varint (all valid varints fit in a Long)
+// Typeclass to get MultibaseAlgorithm values by their properties
 //
-private def validateMultibase(str: String): Either[String, Multibase] =
-  MultibaseAlgorithm.byChar(str.take(1))
-    .map { code =>
-      code.encoder.map { encoder =>
-        encoder
-          .validate(str.drop(1))
-          .map(_ => str)
-      }.joinRight
-    }.joinRight
-
-private def validateWithBase(
-    bytes: Array[Byte],
-    code: MultibaseAlgorithm
-): Either[String, Multibase] =
-  code.encoder.map(_.validate(bytes)).joinRight.map(b =>
-    code.character + new String(b, StandardCharsets.UTF_8)
-  )
-
-private def encodeWithBase(
-    bytes: Array[Byte],
-    code: MultibaseAlgorithm
-): Either[String, Multibase] = code.encoder.map(enc => code.character + enc.encode(bytes))
+private[multiformats] trait MultibaseAlgorithmFactory[C]
+    extends EitherConversion[C, MultibaseAlgorithm]
+private[multiformats] object MultibaseAlgorithmFactory:
+  given MultibaseAlgorithmFactory[MultibaseAlgorithm] = v => Right(v)
+  given MultibaseAlgorithmFactory[VarInt] = v => MultibaseAlgorithm.getByCode(v)
+  given MultibaseAlgorithmFactory[String] =
+    v =>
+      if v.length.equals(1)
+      then MultibaseAlgorithm.getByChar(v)
+      else MultibaseAlgorithm.getByName(v)
 
 //
-// Type-variadic construction via typeclass
+// Input validators: MultibaseIngest
 //
-sealed trait MultibaseFactory[V, C]:
-  def toString(Value: V): String
-  def toBytes(Value: V): Array[Byte]
-  def toMultibaseAlgorithm(Value: C): Either[String, MultibaseAlgorithm]
 
-  def validate(value: V): Either[String, Multibase] = validateMultibase(toString(value))
+trait MultibaseIngest[V] extends EitherConversion[V, String]
 
-  def checkCompat(value: V, code: C): Either[String, Multibase] =
-    toMultibaseAlgorithm(code).map(mc => validateWithBase(toBytes(value), mc)).joinRight
+object MultibaseIngest:
 
-  def encode(value: V, code: C): Either[String, Multibase] =
-    toMultibaseAlgorithm(code).map(mc => encodeWithBase(toBytes(value), mc)).joinRight
+  // check that the tail string is a valid instance of the
+  // multibase algorithm indicated by the head character
+  given MultibaseIngest[String] =
+    str =>
+      MultibaseAlgorithm.getByChar(str.take(1))
+        .flatMap(_.validate(str.drop(1).getBytes))
+        .map(_ => str)
 
-object MultibaseFactory:
-  given MultibaseFactory[String, MultibaseAlgorithm] =
-    new MultibaseFactory[String, MultibaseAlgorithm]:
-      def toString(value: String): String = value
-      def toBytes(value: String): Array[Byte] = value.getBytes
-      def toMultibaseAlgorithm(value: MultibaseAlgorithm): Either[String, MultibaseAlgorithm] =
-        Right(value)
+  // check that the provided bytes are a valid encoded
+  // representation of the multibase algorithm provided
+  given [A] => (af: MultibaseAlgorithmFactory[A]) => MultibaseIngest[(Array[Byte], A)] =
+    (bytes, algorithm) => af(algorithm).flatMap(a => a.validate(bytes).map(a.character + _.toUtf8))
 
-  given MultibaseFactory[Array[Byte], MultibaseAlgorithm] =
-    new MultibaseFactory[Array[Byte], MultibaseAlgorithm]:
-      def toString(value: Array[Byte]): String = new String(value, StandardCharsets.UTF_8)
-      def toBytes(value: Array[Byte]): Array[Byte] = value
-      def toMultibaseAlgorithm(value: MultibaseAlgorithm): Either[String, MultibaseAlgorithm] =
-        Right(value)
-
-  given MultibaseFactory[String, String] =
-    new MultibaseFactory[String, String]:
-      def toString(value: String): String = value
-      def toBytes(value: String): Array[Byte] = value.getBytes
-      def toMultibaseAlgorithm(value: String): Either[String, MultibaseAlgorithm] =
-        if value.length.equals(1)
-        then MultibaseAlgorithm.byChar(value)
-        else MultibaseAlgorithm.byName(value)
-
-  given MultibaseFactory[Array[Byte], String] =
-    new MultibaseFactory[Array[Byte], String]:
-      def toString(value: Array[Byte]): String = new String(value, StandardCharsets.UTF_8)
-      def toBytes(value: Array[Byte]): Array[Byte] = value
-      def toMultibaseAlgorithm(value: String): Either[String, MultibaseAlgorithm] =
-        if value.length.equals(1)
-        then MultibaseAlgorithm.byChar(value)
-        else MultibaseAlgorithm.byName(value)
-
+//
+// Public object interface: Multibase
+//
 opaque type Multibase = String
 
-object Multibase:
-
-  //
-  // Constructors that validate and type an existing multibase string
-  //
-  def validated[V](value: V)(using
-      c: MultibaseFactory[V, MultibaseAlgorithm]
-  ): Either[String, Multibase] = c.validate(value)
-  def ifValid[V](value: V)(using c: MultibaseFactory[V, MultibaseAlgorithm]): Option[Multibase] =
-    c.validate(value).toOption
-  def apply[V](value: V)(using c: MultibaseFactory[V, MultibaseAlgorithm]): Multibase =
-    c.validate(value).fold(error => throw MultibaseValidationError(error), identity)
-
-  //
-  // Constructors that build a multibase string from an encoded string and a MultibaseAlgorithm
-  //
-  def validated[V, C](value: V, code: C)(using
-      c: MultibaseFactory[V, C]
-  ): Either[String, Multibase] = c.checkCompat(value, code)
-  def ifValid[V, C](value: V, code: C)(using c: MultibaseFactory[V, C]): Option[Multibase] =
-    c.checkCompat(value, code).toOption
-  def apply[V, C](value: V, code: C)(using c: MultibaseFactory[V, C]): Multibase =
-    c.checkCompat(value, code).fold(error => throw MultibaseValidationError(error), identity)
+object Multibase extends MultiConstructor[String, Multibase, MultibaseIngest]:
 
   //
   // Constructors that encode the provided bytes with the provided algorithm
   //
-  def encodeValidated[V, C](value: V, code: C)(using
-      c: MultibaseFactory[V, C]
-  ): Either[String, Multibase] = c.encode(value, code)
-  def encodeIfValid[V, C](value: V, code: C)(using c: MultibaseFactory[V, C]): Option[Multibase] =
-    c.encode(value, code).toOption
-  def encode[V, C](value: V, code: C)(using c: MultibaseFactory[V, C]): Multibase =
-    c.encode(value, code).fold(error => throw MultibaseValidationError(error), identity)
+  def encodeValidated[C](value: Array[Byte], code: C)(using
+      maf: MultibaseAlgorithmFactory[C]
+  ): Either[String, Multibase] =
+    maf(code).flatMap(algo => algo.encode(value).map(algo.character + _))
+  def encodeIfValid[C](value: Array[Byte], code: C)(using
+      c: MultibaseAlgorithmFactory[C]
+  ): Option[Multibase] = encodeValidated(value, code).toOption
+  def encode[C](value: Array[Byte], code: C)(using c: MultibaseAlgorithmFactory[C]): Multibase =
+    encodeValidated(value, code).fold(error => throw ValidationError[Multibase](error), identity)
 
   extension (mb: Multibase)
     def =~(other: Multibase): Boolean = mb.equals(other)
@@ -215,7 +153,7 @@ object Multibase:
 
     def prefix: String = mb.take(1)
     def data: String = mb.drop(1)
-    def encoding: MultibaseAlgorithm = MultibaseAlgorithm.byChar(prefix).toOption.get
+    def encoding: MultibaseAlgorithm = MultibaseAlgorithm.getByChar(prefix).toOption.get
     def encoder: Encoding[?] = encoding.encoder.toOption.get
 
     def decode: Array[Byte] = encoder.decode(data)

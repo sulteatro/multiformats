@@ -1,13 +1,14 @@
 package multiformats.cid
 
+import milletre.constructor.ValidationError
 import multiformats.multibase.Multibase
 import multiformats.multibase.MultibaseAlgorithm
-import multiformats.multibase.MultibaseFactory
+import multiformats.multibase.MultibaseAlgorithmFactory
 import multiformats.multicodec.Multicodec
 import multiformats.multicodec.MulticodecIngest
 import multiformats.multihash.Multihash
 import multiformats.multihash.MultihashAlgorithm
-import multiformats.multihash.MultihashFactory
+import multiformats.multihash.MultihashAlgorithmFactory
 import multiformats.varint.VarInt
 
 class CIDTests extends munit.FunSuite:
@@ -88,7 +89,7 @@ class CIDTests extends munit.FunSuite:
     def testRawCIDConverterFailures(input: Array[Byte], msg: String): Unit =
       assertEquals(CID.validated(input), Left(msg))
       assertEquals(CID.ifValid(input), None)
-      interceptMessage[CIDValidationError](msg):
+      interceptMessage[ValidationError[CID[Raw]]](msg):
         CID(input)
 
     invalidCIDs.foreach { case (value, msg) =>
@@ -98,7 +99,7 @@ class CIDTests extends munit.FunSuite:
   test("CID constructors for Multibase and String return a CID[Encoded]-typed Multibase object"):
     val expected = cidMultibase.toString
 
-    def testEncodedCIDConverters[I](input: I)(using CIDConverterFactory[I]): Unit =
+    def testEncodedCIDConverters[I](input: I)(using CIDIngest[Encoded, I]): Unit =
       assertEquals(CID.validated(input).map(_.toString), Right(expected))
       assertEquals(CID.ifValid(input).map(_.toString), Some(expected))
       assertEquals(CID(input).toString, expected)
@@ -108,20 +109,18 @@ class CIDTests extends munit.FunSuite:
     testEncodedCIDConverters(cidHumanReadable)
 
   test("CID constructors for Multibase and String perform failure modes for invalid CIDs"):
-    def testEncodedCIDConverterFailures[I](input: I, msg: String)(using
-        CIDConverterFactory[I]
-    ): Unit =
+    def testEncodedCIDFailures[I](input: I, msg: String)(using CIDIngest[Encoded, I]): Unit =
       assertEquals(CID.validated(input), Left(msg))
       assertEquals(CID.ifValid(input), None)
-      interceptMessage[CIDValidationError](msg):
+      interceptMessage[ValidationError[CID[Encoded]]](msg):
         CID(input)
 
     invalidCIDs.foreach { case (value, msg) =>
-      testEncodedCIDConverterFailures(Multibase.encode(value, cidMultibaseAlgorithm), msg)
+      testEncodedCIDFailures(Multibase.encode(value, cidMultibaseAlgorithm), msg)
     }
 
     invalidHumanReadableCIDs.foreach { case (value, msg) =>
-      testEncodedCIDConverterFailures(value, msg)
+      testEncodedCIDFailures(value, msg)
     }
 
   test("CID constructors for address and content type return a CID[Raw]"):
@@ -129,11 +128,11 @@ class CIDTests extends munit.FunSuite:
 
     def testRawCIDConstructors[T, A](contentType: T, address: A)(using
         MulticodecIngest[T],
-        CIDConstructorFactory[A]
+        CIDIngest[Raw, (A, T)]
     ): Unit =
-      assertEquals(CID.validated(contentType, address).map(_.toBytes.toSeq), Right(expected))
-      assertEquals(CID.ifValid(contentType, address).map(_.toBytes.toSeq), Some(expected))
-      assertEquals(CID(contentType, address).toBytes.toSeq, expected)
+      assertEquals(CID.validated(address, contentType).map(_.toBytes.toSeq), Right(expected))
+      assertEquals(CID.ifValid(address, contentType).map(_.toBytes.toSeq), Some(expected))
+      assertEquals(CID(address, contentType).toBytes.toSeq, expected)
 
     val (ctCodec, ctCode, ctName) = (cidContentType, cidContentType.code, cidContentType.toString)
     val ctPrefixed = cidBytes.drop(1)
@@ -153,12 +152,12 @@ class CIDTests extends munit.FunSuite:
   test("CID constructors for address and content type perform failure modes for invalid CIDs"):
     def testRawCIDConstructorFailures[T, A](contentType: T, address: A, msg: String)(using
         MulticodecIngest[T],
-        CIDConstructorFactory[A]
+        CIDIngest[Raw, (A, T)]
     ): Unit =
-      assertEquals(CID.validated(contentType, address), Left(msg))
-      assertEquals(CID.ifValid(contentType, address), None)
-      interceptMessage[CIDValidationError](msg):
-        CID(contentType, address)
+      assertEquals(CID.validated(address, contentType), Left(msg))
+      assertEquals(CID.ifValid(address, contentType), None)
+      interceptMessage[ValidationError[CID[Raw]]](msg):
+        CID(address, contentType)
 
     val badMC: VarInt = VarInt.encode(0x05)
 
@@ -208,12 +207,12 @@ class CIDTests extends munit.FunSuite:
 
     def testEncodedCIDConstructors[T, A, B](contentType: T, address: A, base: B)(using
         MulticodecIngest[T],
-        CIDConstructorFactory[A],
-        MultibaseFactory[Array[Byte], B]
+        MultibaseAlgorithmFactory[B],
+        CIDIngest[Encoded, (A, T, B)]
     ): Unit =
-      assertEquals(CID.validated(contentType, address, base).map(_.toString), Right(expected))
-      assertEquals(CID.ifValid(contentType, address, base).map(_.toString), Some(expected))
-      assertEquals(CID(contentType, address, base).toString, expected)
+      assertEquals(CID.validated(address, contentType, base).map(_.toString), Right(expected))
+      assertEquals(CID.ifValid(address, contentType, base).map(_.toString), Some(expected))
+      assertEquals(CID(address, contentType, base).toString, expected)
 
     val mhAddress = Multihash(cidAddress)
 
@@ -263,13 +262,13 @@ class CIDTests extends munit.FunSuite:
         msg: String
     )(using
         MulticodecIngest[T],
-        CIDConstructorFactory[A],
-        MultibaseFactory[Array[Byte], B]
+        MultibaseAlgorithmFactory[B],
+        CIDIngest[Encoded, (A, T, B)]
     ): Unit =
-      assertEquals(CID.validated(contentType, address, base), Left(msg))
-      assertEquals(CID.ifValid(contentType, address, base), None)
-      interceptMessage[CIDValidationError](msg):
-        CID(contentType, address, base)
+      assertEquals(CID.validated(address, contentType, base), Left(msg))
+      assertEquals(CID.ifValid(address, contentType, base), None)
+      interceptMessage[ValidationError[CID[Encoded]]](msg):
+        CID(address, contentType, base)
 
     val badMC: VarInt = VarInt.encode(0x05)
 
@@ -338,9 +337,9 @@ class CIDTests extends munit.FunSuite:
     val expected = cidBytes.toSeq
 
     def testRawCIDDigestors[C, T, H](content: C, contentType: T, hash: H)(using
-        CIDDigestorFactory[C],
         MulticodecIngest[T],
-        MultihashFactory[H]
+        MultihashAlgorithmFactory[H],
+        CIDDigest[Raw, (C, T, H)]
     ): Unit =
       assertEquals(
         CID.digestValidated(content, contentType, hash).map(_.toBytes.toSeq),
@@ -418,11 +417,11 @@ class CIDTests extends munit.FunSuite:
 
     def testRawCIDDigestorFailures[T, H](contentType: T, hash: H, msg: String)(using
         MulticodecIngest[T],
-        MultihashFactory[H]
+        MultihashAlgorithmFactory[H]
     ): Unit =
       assertEquals(CID.digestValidated(cidContent, contentType, hash), Left(msg))
       assertEquals(CID.digestIfValid(cidContent, contentType, hash), None)
-      interceptMessage[CIDValidationError](msg):
+      interceptMessage[ValidationError[CID[Raw]]](msg):
         CID.digest(cidContent, contentType, hash)
 
     val badMC: VarInt = VarInt.encode(0x05)
@@ -464,10 +463,10 @@ class CIDTests extends munit.FunSuite:
     val expected = cidMultibase.toString
 
     def testEncodedCIDDigestors[C, T, H, B](content: C, contentType: T, hash: H, base: B)(using
-        CIDDigestorFactory[C],
         MulticodecIngest[T],
-        MultihashFactory[H],
-        MultibaseFactory[Array[Byte], B]
+        MultihashAlgorithmFactory[H],
+        MultibaseAlgorithmFactory[B],
+        CIDDigest[Encoded, (C, T, H, B)]
     ): Unit =
       assertEquals(
         CID.digestValidated(content, contentType, hash, base).map(_.toString),
@@ -648,12 +647,12 @@ class CIDTests extends munit.FunSuite:
 
     def testEncodedCIDDigestorFailures[T, H, B](contentType: T, hash: H, base: B, msg: String)(using
         MulticodecIngest[T],
-        MultihashFactory[H],
-        MultibaseFactory[Array[Byte], B]
+        MultihashAlgorithmFactory[H],
+        MultibaseAlgorithmFactory[B]
     ): Unit =
       assertEquals(CID.digestValidated(cidContent, contentType, hash, base), Left(msg))
       assertEquals(CID.digestIfValid(cidContent, contentType, hash, base), None)
-      interceptMessage[CIDValidationError](msg):
+      interceptMessage[ValidationError[CID[Encoded]]](msg):
         CID.digest(cidContent, contentType, hash, base)
 
     val badMC: VarInt = VarInt.encode(0x05)
@@ -721,9 +720,9 @@ class CIDTests extends munit.FunSuite:
     assertEquals(CID(cidMultibase).decode.toBytes.toSeq, CID(cidBytes).toBytes.toSeq)
 
   test("CID congruency (=~, !~) acts as equality between maximal shared data of two CIDs"):
-    val (cidRaw1, cidEncoded1) = (CID(cidContentType, cidAddress), CID(cidMultibase))
+    val (cidRaw1, cidEncoded1) = (CID(cidAddress, cidContentType), CID(cidMultibase))
     val (cidRaw2, cidEncoded2) =
-      (CID(cidBytes), CID(cidContentType, cidAddress, cidMultibaseAlgorithm))
+      (CID(cidBytes), CID(cidAddress, cidContentType, cidMultibaseAlgorithm))
     assert(cidRaw1 =~ cidRaw2)
     assert(cidRaw1 =~ cidEncoded2)
     assert(cidEncoded1 =~ cidRaw2)
@@ -789,5 +788,5 @@ class CIDTests extends munit.FunSuite:
       ci"base32z - cidv1 - raw - $mhHumanReadable",
       CID(s"base32z - cidv1 - raw - $mhHumanReadable")
     )
-    interceptMessage[CIDValidationError]("Unsupported multibase codec name: 'base137'"):
+    interceptMessage[ValidationError[CID[Encoded]]]("Unsupported multibase codec name: 'base137'"):
       ci"base137 - cidv1 - raw - $mhHumanReadable"

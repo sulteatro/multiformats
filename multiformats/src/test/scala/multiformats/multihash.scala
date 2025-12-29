@@ -1,5 +1,6 @@
 package multiformats.multihash
 
+import milletre.constructor.ValidationError
 import multiformats.varint.VarInt
 
 class MultihashTests extends munit.FunSuite:
@@ -269,21 +270,27 @@ class MultihashTests extends munit.FunSuite:
 
   test("Multihash(Array[Byte]) throws for invalid bytes"):
     invalidMultihashes.foreach { case ((_, value), msg) =>
-      interceptMessage[MultihashValidationError](msg):
+      interceptMessage[ValidationError[Multihash]](msg):
         Multihash(value)
     }
 
   test(
-    "Multihash.validated(Array[Byte], MultihashAlgorithm|VarInt|String) returns Right[Multihash] for a supported algorithm"
+    "Multihash.validated((Array[Byte], MultihashAlgorithm|VarInt|String)) returns Right[Multihash] for a supported algorithm"
   ):
     validMultihashes.foreach { case (value, (_, _, digest, algo, _)) =>
-      assertEquals(Multihash.validated(digest, algo).map(_.toBytes.toSeq), Right(value.toSeq))
-      assertEquals(Multihash.validated(digest, algo.code).map(_.toBytes.toSeq), Right(value.toSeq))
-      assertEquals(Multihash.validated(digest, algo.name).map(_.toBytes.toSeq), Right(value.toSeq))
+      assertEquals(Multihash.validated((digest, algo)).map(_.toBytes.toSeq), Right(value.toSeq))
+      assertEquals(
+        Multihash.validated(digest, algo.code).map(_.toBytes.toSeq),
+        Right(value.toSeq)
+      )
+      assertEquals(
+        Multihash.validated(digest, algo.name).map(_.toBytes.toSeq),
+        Right(value.toSeq)
+      )
     }
 
   test(
-    "Multihash.validated(Array[Byte], MultihashAlgorithm|VarInt|String) returns Left[String] for an unsupported algorithm"
+    "Multihash.validated((Array[Byte], MultihashAlgorithm|VarInt|String)) returns Left[String] for an unsupported algorithm"
   ):
     invalidCodeAndDigest.foreach { case ((code, digest), msg) =>
       assertEquals(Multihash.validated(digest, code).map(_.toBytes.toSeq), Left(msg))
@@ -293,7 +300,7 @@ class MultihashTests extends munit.FunSuite:
     }
 
   test(
-    "Multihash.ifValid(Array[Byte], MultihashAlgorithm|VarInt|String) returns Some[Multihash] for a supported algorithm"
+    "Multihash.ifValid((Array[Byte], MultihashAlgorithm|VarInt|String)) returns Some[Multihash] for a supported algorithm"
   ):
     validMultihashes.foreach { case (value, (_, _, digest, algo, _)) =>
       assertEquals(Multihash.ifValid(digest, algo).map(_.toBytes.toSeq), Some(value.toSeq))
@@ -302,7 +309,7 @@ class MultihashTests extends munit.FunSuite:
     }
 
   test(
-    "Multihash.ifValid(Array[Byte], MultihashAlgorithm|VarInt|String) returns None for an unsupported algorithm"
+    "Multihash.ifValid((Array[Byte], MultihashAlgorithm|VarInt|String)) returns None for an unsupported algorithm"
   ):
     invalidCodeAndDigest.foreach { case ((code, digest), _) =>
       assertEquals(Multihash.ifValid(digest, code).map(_.toBytes.toSeq), None)
@@ -312,7 +319,7 @@ class MultihashTests extends munit.FunSuite:
     }
 
   test(
-    "Multihash(Array[Byte], MultihashAlgorithm|VarInt|String) returns Multihash for a supported algorithm"
+    "Multihash((Array[Byte], MultihashAlgorithm|VarInt|String)) returns Multihash for a supported algorithm"
   ):
     validMultihashes.foreach { case (value, (_, _, digest, algo, _)) =>
       assertEquals(Multihash(digest, algo).toBytes.toSeq, value.toSeq)
@@ -321,14 +328,14 @@ class MultihashTests extends munit.FunSuite:
     }
 
   test(
-    "Multihash(Array[Byte], MultihashAlgorithm|VarInt|String) throws for an unsupported algorithm"
+    "Multihash((Array[Byte], MultihashAlgorithm|VarInt|String)) throws for an unsupported algorithm"
   ):
     invalidCodeAndDigest.foreach { case ((code, digest), msg) =>
-      interceptMessage[MultihashValidationError](msg):
+      interceptMessage[ValidationError[Multihash]](msg):
         Multihash(digest, code)
     }
     invalidNameAndDigest.foreach { case ((code, digest, _), msg) =>
-      interceptMessage[MultihashValidationError](msg):
+      interceptMessage[ValidationError[Multihash]](msg):
         Multihash(digest, code)
     }
 
@@ -359,7 +366,7 @@ class MultihashTests extends munit.FunSuite:
 
   test("Multihash(String) throws for an invalid human-readable string"):
     invalidNameAndDigest.foreach { case ((_, _, hrString), msg) =>
-      interceptMessage[MultihashValidationError](msg):
+      interceptMessage[ValidationError[Multihash]](msg):
         Multihash(hrString)
     }
 
@@ -424,11 +431,11 @@ class MultihashTests extends munit.FunSuite:
 
   test("Multihash.digest(Array[Byte], MultihashAlgorithm|VarInt|String) throws on failure"):
     invalidCodeAndDigest.foreach { case ((code, _), msg) =>
-      interceptMessage[MultihashValidationError](msg):
+      interceptMessage[ValidationError[Multihash]](msg):
         Multihash.digest(source, code)
     }
     invalidNameAndDigest.foreach { case ((code, _, _), msg) =>
-      interceptMessage[MultihashValidationError](msg):
+      interceptMessage[ValidationError[Multihash]](msg):
         Multihash.digest(source, code)
     }
 
@@ -495,5 +502,5 @@ class MultihashTests extends munit.FunSuite:
         "md4-128-0ac6700c491d70fb8650940b1ca1e4b2"
       )
     )
-    interceptMessage[MultihashValidationError]("Unsupported multihash name: 'hash-one'"):
+    interceptMessage[ValidationError[Multihash]]("Unsupported multihash name: 'hash-one'"):
       mh"hash-one-160-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33"

@@ -1,45 +1,9 @@
 package multiformats.multihash
 
+import milletre.constructor.*
 import multiencoder.encoder.Base16
 import multiformats.multicodec.Multicodec
 import multiformats.varint.VarInt
-import org.bouncycastle.crypto.digests.Blake3Digest
-import org.bouncycastle.jce.provider.BouncyCastleProvider
-
-import java.security.MessageDigest
-import java.security.MessageDigestSpi
-import java.security.Provider
-import java.security.Security
-
-final case class MultihashValidationError(
-    private val message: String = "",
-    private val cause: Throwable = None.orNull
-) extends Exception(message, cause)
-
-object providers:
-  class Blake3Provider extends Provider("Blake3Provider", "1.0.0", "BLAKE3 MessageDigest Provider"):
-    private class Blake3DigestSpi extends MessageDigestSpi:
-      private val digest: Blake3Digest = new Blake3Digest
-      private val singleByte: Array[Byte] = Array(0.toByte)
-
-      override protected def engineUpdate(input: Byte): Unit =
-        singleByte(0) = input
-        digest.update(singleByte, 0, 1);
-
-      override protected def engineUpdate(input: Array[Byte], offset: Int, len: Int): Unit =
-        digest.update(input, offset, len);
-
-      override protected def engineDigest: Array[Byte] =
-        val output = Array.fill[Byte](digest.getDigestSize())(0)
-        digest.doFinal(output, 0)
-        output
-
-      override protected def engineReset: Unit = digest.reset
-
-      override protected def engineGetDigestLength: Int = digest.getDigestSize
-
-    put("MessageDigest.BLAKE3", classOf[Blake3DigestSpi].getName)
-    put("MessageDigest.blake3", classOf[Blake3DigestSpi].getName) // allow lowercase alias
 
 // Note: this one is manually implemented, and thus must be manually updated
 enum MultihashAlgorithm(val multicodec: Multicodec, val name: String):
@@ -67,159 +31,105 @@ enum MultihashAlgorithm(val multicodec: Multicodec, val name: String):
   case blake3 extends MultihashAlgorithm(Multicodec.blake3, "blake3")
 
   def label: String = this.toString.replaceAll("_", "-")
-
-  def size: Int = MessageDigest.getInstance(name).getDigestLength
-
   def code: VarInt = multicodec.code
-
-  def digest(barr: Array[Byte]): Array[Byte] =
-    val messageDigest = MessageDigest.getInstance(name)
-    messageDigest.update(barr)
-    messageDigest.digest()
+  def size: Int = security.size(name)
+  def digest(barr: Array[Byte]): Either[String, Array[Byte]] = security.digest(name, barr)
 
 object MultihashAlgorithm:
   private lazy val codeToAlgorithm: Map[VarInt, MultihashAlgorithm] =
     MultihashAlgorithm.values.map(a => a.code -> a).toMap
-
-  def byCode(code: VarInt): Either[String, MultihashAlgorithm] =
-    codeToAlgorithm.get(code).toRight(s"Unsupported multihash code: '${code.toHex}'")
 
   private lazy val nameToAlgorithm: Map[String, MultihashAlgorithm] =
     MultihashAlgorithm.values.map {
       code => Vector(code.toString -> code, code.name -> code, code.label -> code)
     }.flatten.toMap
 
-  def byName(name: String): Either[String, MultihashAlgorithm] =
+  def getByCode(code: VarInt): Either[String, MultihashAlgorithm] =
+    codeToAlgorithm.get(code).toRight(s"Unsupported multihash code: '${code.toHex}'")
+
+  def getByName(name: String): Either[String, MultihashAlgorithm] =
     nameToAlgorithm.get(name.toLowerCase).toRight(s"Unsupported multihash name: '$name'")
 
 //
-// Implementation details:
-// * validateBytes checks that the provided byte array is a valid multihash
-// * buildWithCodec concatenates the codec, size, and digest into a multihash
-// * digestWithCodec generates a hash digest and creates a multihash from it
+// Typeclass to get MultihashAlgorithm values by their properties
 //
-private def validateBytes(bytes: Array[Byte]): Either[String, Array[Byte]] =
-  VarInt.sequence(bytes, 2) match
-    case (Array(code, size), digest) =>
-      Multicodec.validated(code)
-        .map(hashCodec => MultihashAlgorithm.byCode(hashCodec.code))
-        .joinRight
-        .filterOrElse(
-          _ => size.decode.toInt.equals(digest.length),
-          s"Mismatch between expected and realized digest sizes: $size vs ${digest.length}"
-        ).map(_ => bytes)
-    case _ =>
-      Left("Invalid multihash format: could not extract code & size varints")
+private[multiformats] trait MultihashAlgorithmFactory[C]
+    extends EitherConversion[C, MultihashAlgorithm]
+private[multiformats] object MultihashAlgorithmFactory:
+  given MultihashAlgorithmFactory[MultihashAlgorithm] = v => Right(v)
+  given MultihashAlgorithmFactory[VarInt] = v => MultihashAlgorithm.getByCode(v)
+  given MultihashAlgorithmFactory[String] = v => MultihashAlgorithm.getByName(v)
 
 private def buildWithCodec(bytes: Array[Byte], algo: MultihashAlgorithm): Array[Byte] =
   (algo.code.toBytes :+ bytes.length.toByte) ++ bytes
 
-private def digestWithCodec(
-    bytes: Array[Byte],
-    algo: MultihashAlgorithm
-): Either[String, Array[Byte]] =
-  (algo.size, algo.digest(bytes)) match
-    case (size, digest) if size.equals(digest.length) =>
-      Right(buildWithCodec(digest, algo))
-    case (size, digest) =>
-      Left(s"Mismatch between expected and realized digest sizes: $size vs ${digest.length}")
+//
+// Input validators: MultihashIngest
+//
+trait MultihashIngest[V] extends EitherConversion[V, Array[Byte]]
 
-private def translateMultihash(str: String): Either[String, Array[Byte]] =
-  str.split("-").reverse.toVector match
-    case digest +: size +: nameParts =>
-      val sizeBytes: Int = size.toInt / 8
-      Base16.validate(digest)
-        .map(Base16.decode)
-        .map(digestBytes =>
-          MultihashAlgorithm.byName(nameParts.reverse.mkString("-"))
+object MultihashIngest:
+
+  // checks that the provided byte array is a valid multihash
+  given MultihashIngest[Array[Byte]] =
+    bytes =>
+      VarInt.sequence(bytes, 2) match
+        case (Array(code, size), digest) =>
+          Multicodec.validated(code)
+            .flatMap(hashCodec => MultihashAlgorithm.getByCode(hashCodec.code))
             .filterOrElse(
-              _ => sizeBytes.equals(digestBytes.length),
-              s"Mismatch between expected and realized digest sizes: $sizeBytes vs ${digestBytes.length}"
-            ).map(buildWithCodec(digestBytes, _))
-        ).joinRight
-    case _ =>
-      Left("Invalid human-readable Multihash format: '$str'")
+              _ => size.decode.toInt.equals(digest.length),
+              s"Mismatch between expected and realized digest sizes: $size vs ${digest.length}"
+            ).map(_ => bytes)
+        case _ =>
+          Left("Invalid multihash format: could not extract code & size varints")
 
-//
-// Type-variadic construction via typeclass
-//
-sealed trait MultihashFactory[C]:
-  def toMultihashAlgorithm(value: C): Either[String, MultihashAlgorithm]
+  given [A] => (af: MultihashAlgorithmFactory[A]) => MultihashIngest[(Array[Byte], A)] =
+    (bytes, algorithm) => af(algorithm).map(buildWithCodec(bytes, _))
 
-  def build(value: Array[Byte], code: C): Either[String, Array[Byte]] =
-    toMultihashAlgorithm(code).map(algo => buildWithCodec(value, algo))
-
-  def digest(value: Array[Byte], code: C): Either[String, Array[Byte]] =
-    toMultihashAlgorithm(code).map(algo => digestWithCodec(value, algo)).joinRight
-
-private[multiformats] object MultihashFactory:
-  given MultihashFactory[MultihashAlgorithm] =
-    new MultihashFactory[MultihashAlgorithm]:
-      def toMultihashAlgorithm(value: MultihashAlgorithm): Either[String, MultihashAlgorithm] =
-        Right(value)
-
-  given MultihashFactory[VarInt] =
-    new MultihashFactory[VarInt]:
-      def toMultihashAlgorithm(value: VarInt): Either[String, MultihashAlgorithm] =
-        MultihashAlgorithm.byCode(value)
-
-  given MultihashFactory[String] =
-    new MultihashFactory[String]:
-      def toMultihashAlgorithm(value: String): Either[String, MultihashAlgorithm] =
-        MultihashAlgorithm.byName(value)
+  // checks that a string is in human-readable multhash format, then converts it to a multihash
+  given MultihashIngest[String] =
+    str =>
+      str.split("-").reverse.toVector match
+        case digest +: size +: nameParts =>
+          val sizeBytes: Int = size.toInt / 8
+          Base16.validate(digest)
+            .map(Base16.decode)
+            .map(digestBytes =>
+              MultihashAlgorithm.getByName(nameParts.reverse.mkString("-"))
+                .filterOrElse(
+                  _ => sizeBytes.equals(digestBytes.length),
+                  s"Mismatch between expected and realized digest sizes: $sizeBytes vs ${digestBytes.length}"
+                ).map(buildWithCodec(digestBytes, _))
+            ).joinRight
+        case _ =>
+          Left("Invalid human-readable Multihash format: '$str'")
 
 //
 // Public object interface: Multihash
 //
 opaque type Multihash = Array[Byte]
 
-object Multihash:
-  // Add extra crypto algorithms provided by Bouncy Castle
-  Security.addProvider(new BouncyCastleProvider)
-  // Add custom Blake3Provider using Bouncy Castle's raw Blake3Digest algorithm
-  Security.addProvider(new providers.Blake3Provider)
-
-  //
-  // Constructors that validate and type an existing multihash
-  //
-  def validated(bytes: Array[Byte]): Either[String, Multihash] = validateBytes(bytes)
-  def ifValid(bytes: Array[Byte]): Option[Multihash] = validated(bytes).toOption
-  def apply(bytes: Array[Byte]): Multihash =
-    validated(bytes).fold(error => throw MultihashValidationError(error), identity)
-
-  //
-  // Constructors that build a multihash from a digest and multicodec
-  //
-  def validated[C](bytes: Array[Byte], code: C)(using
-      c: MultihashFactory[C]
-  ): Either[String, Multihash] = c.build(bytes, code)
-  def ifValid[C](bytes: Array[Byte], code: C)(using c: MultihashFactory[C]): Option[Multihash] =
-    c.build(bytes, code).toOption
-  def apply[C](bytes: Array[Byte], code: C)(using c: MultihashFactory[C]): Multihash =
-    c.build(bytes, code).fold(error => throw MultihashValidationError(error), identity)
-
-  //
-  // Constructors that translate a human-readable string into a Multihash
-  //   Format: <multihash_algorithm_name>-<base16_encoded_hash>
-  //
-  def validated(str: String)(using c: MultihashFactory[String]): Either[String, Multihash] =
-    translateMultihash(str)
-  def ifValid(str: String)(using c: MultihashFactory[String]): Option[Multihash] =
-    translateMultihash(str).toOption
-  def apply(str: String)(using c: MultihashFactory[String]): Multihash =
-    translateMultihash(str).fold(error => throw MultihashValidationError(error), identity)
+object Multihash extends MultiConstructor[Array[Byte], Multihash, MultihashIngest]:
+  security.addMultihashProviders()
 
   //
   // Hash-generating constructors
   //
-  def digestValidated[C](bytes: Array[Byte], code: C)(using
-      c: MultihashFactory[C]
-  ): Either[String, Multihash] = c.digest(bytes, code)
-  def digestIfValid[C](bytes: Array[Byte], code: C)(using
-      c: MultihashFactory[C]
-  ): Option[Multihash] = c.digest(bytes, code).toOption
-  def digest[C](bytes: Array[Byte], code: C)(using c: MultihashFactory[C]): Multihash =
-    c.digest(bytes, code).fold(error => throw MultihashValidationError(error), identity)
+  def digestValidated[A](bytes: Array[Byte], algorithm: A)(using
+      maf: MultihashAlgorithmFactory[A]
+  ): Either[String, Multihash] =
+    maf(algorithm).flatMap(algo => algo.digest(bytes).map(buildWithCodec(_, algo)))
+  def digestIfValid[A](bytes: Array[Byte], algorithm: A)(using
+      MultihashAlgorithmFactory[A]
+  ): Option[Multihash] = digestValidated(bytes, algorithm).toOption
+  def digest[A](bytes: Array[Byte], algorithm: A)(using
+      MultihashAlgorithmFactory[A]
+  ): Multihash =
+    digestValidated(
+      bytes,
+      algorithm
+    ).fold(error => throw ValidationError[Multihash](error), identity)
 
   extension (mh: Multihash)
     def =~(other: Multihash): Boolean = BigInt(mh).equals(BigInt(other))
@@ -228,8 +138,7 @@ object Multihash:
     def toBytes: Array[Byte] = mh
 
     def code: VarInt = VarInt.sequence(mh, 1).head.head
-    def algorithm: MultihashAlgorithm =
-      summon[MultihashFactory[VarInt]].toMultihashAlgorithm(code).toOption.get
+    def algorithm: MultihashAlgorithm = MultihashAlgorithm.getByCode(code).toOption.get
 
     def size: Int = VarInt.sequence(mh, 2).head.last.decode.toInt
     def digest: Array[Byte] = VarInt.sequence(mh, 2).last
@@ -238,12 +147,12 @@ object Multihash:
       VarInt.sequence(mh, 2) match
         case (Array(mhc, mhs), mhd) =>
           Vector(
-            MultihashAlgorithm.byCode(mhc).map(_.label).toOption.get,
+            MultihashAlgorithm.getByCode(mhc).map(_.label).toOption.get,
             mhs.decode * 8,
             new String(Base16.encode(mhd))
           ).mkString("-")
         case (ba, via) =>
-          throw MultihashValidationError(s"Unreachable case, bytes: ${ba}, varints: ${via}")
+          throw ValidationError[Multihash](s"Unreachable case, bytes: ${ba}, varints: ${via}")
 
 extension (sc: StringContext)
   def mh(args: Any*): Multihash = Multihash(sc.s(args*))

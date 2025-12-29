@@ -1,6 +1,6 @@
 package multiencoder
 
-import java.nio.charset.StandardCharsets
+import milletre.utilities.*
 import scala.annotation.tailrec
 
 import array.SizedArray
@@ -16,9 +16,6 @@ object encoding:
   private inline def padSize(n: Int, packSize: Int): Int = (packSize - (n % packSize)) % packSize
 
   private inline def bitEntropy(base: Int): Double = log10(base) / log10(2)
-
-  private inline def bytesToString(bytes: Array[Byte]): String =
-    new String(bytes, StandardCharsets.UTF_8)
 
   enum PackingOrientation:
     case LeftOriented, RightOriented
@@ -51,7 +48,7 @@ object encoding:
     def decode(barr: String): Array[Byte]
     def validate(barr: Array[Byte]): Either[String, Array[Byte]]
 
-    def validate(str: String): Either[String, String] = validate(str.getBytes).map(bytesToString)
+    def validate(str: String): Either[String, String] = validate(str.getBytes).map(_.toUtf8)
 
   /** Notes on this algorithm:
     *
@@ -131,10 +128,10 @@ object encoding:
       val outputSize: Int = encodedSize(barr.size)
       if orientation.equals(LeftOriented) then
         val (toPad, enc) = encodeBytes(inputPad ++ barr).splitAt(padSize(outputSize, packChars))
-        bytesToString(toPad.flatMap(_ => padByte) ++ enc.map(alphEncode.apply))
+        (toPad.flatMap(_ => padByte) ++ enc.map(alphEncode.apply)).toUtf8
       else
         val (enc, toPad) = encodeBytes(barr ++ inputPad).splitAt(outputSize)
-        bytesToString(enc.map(alphEncode.apply) ++ toPad.flatMap(_ => padByte))
+        (enc.map(alphEncode.apply) ++ toPad.flatMap(_ => padByte)).toUtf8
 
     // Implementation of `decode` for an encoded byte array padded to ensure byte packs of equal size
     private def decodePacks(packedBarr: Array[Byte]): Array[Byte] =
@@ -222,7 +219,7 @@ object encoding:
     def encode(barr: Array[Byte]): String =
       val (inputPad, packedBarr) = barr.splitAt(barr.indexWhere(_ != 0))
       val encodedBytes: Array[Byte] = inputPad ++ encodeInt(packedBarr)
-      bytesToString(encodedBytes.map(alphEncode.apply))
+      encodedBytes.map(alphEncode.apply).toUtf8
 
     private def decodeInt(packedBarr: Array[Byte]): Array[Byte] =
       packedBarr.foldLeft(BigInt(0)) {
