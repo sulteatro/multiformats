@@ -1,6 +1,7 @@
 package multiencoder
 
-import milletre.utilities.*
+import milletre.utils.*
+
 import scala.annotation.tailrec
 
 import array.SizedArray

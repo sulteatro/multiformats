@@ -1,11 +1,10 @@
 package multiformats.multibase
 
+import milletre.constructor.*
+import milletre.utils.*
 import multiencoder.encoder.*
 import multiencoder.encoding.Encoding
 import multiformats.varint.VarInt
-
-import milletre.utilities.*
-import milletre.constructor.*
 
 // format: off
 // generateMultibase: begin //

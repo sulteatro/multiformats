@@ -1,11 +1,10 @@
 package multiformats.multicodec
 
-import milletre.generator.CsvCodeGenerator
-import milletre.generator.currentFilePath
-import milletre.generator.spliceInto
+import milletre.generator
+import milletre.utils
 
 @main def generate(): Unit =
-  val gen: CsvCodeGenerator = new CsvCodeGenerator(
+  val gen: generator.CsvCodeGenerator = new generator.CsvCodeGenerator(
     "Multicodec",
     "https://raw.githubusercontent.com/multiformats/multicodec/refs/heads/master/table.csv"
   )
@@ -20,8 +19,8 @@ import milletre.generator.spliceInto
   val multicodecStatusEnumCode = gen.asEnum(status)
   val multicodecEnumCode = gen.asEnum(name, Some(""), Some(Seq(tag, code, status, description)))
 
-  val targetFile: String = currentFilePath.resolveSibling("parser.scala").toString
-  spliceInto(
+  val targetFile: String = utils.moduleFile.resolveSibling("parser.scala").toString
+  generator.spliceInto(
     targetFile,
     "generateMulticodec",
     Vector(multicodecTagEnumCode, multicodecStatusEnumCode, multicodecEnumCode)

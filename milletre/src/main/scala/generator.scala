@@ -1,11 +1,6 @@
 package milletre
 
-import java.nio.charset.StandardCharsets
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
-import scala.io.BufferedSource
-import scala.io.Source
+import milletre.utils
 
 final case class CodeGenerationError(
     private val message: String = "",
@@ -15,8 +10,6 @@ final case class CodeGenerationError(
 object generator:
   val DefaultDataGroup = "all"
 
-  inline def currentFilePath: Path = ${ macros.currentFilePath }
-
   private def escapeIfKeyword(name: String) =
     if Vector("final").contains(name) then s"`$name`" else name
 
@@ -25,9 +18,8 @@ object generator:
       separator: String = raw",\s*",
       groupByOpt: Option[Map[String, String] => String] = None
   ): (Array[String], Map[String, Vector[Array[String]]]) =
-    val csvSource: BufferedSource =
-      if filename.contains("://") then Source.fromURL(filename) else Source.fromFile(filename)
-    val csvData: Vector[Array[String]] = csvSource.getLines.map(_.split(separator)).toVector
+    val csvData: Vector[Array[String]] =
+      utils.readFile(filename).getLines.map(_.split(separator)).toVector
 
     val (header, data) = (csvData(0).map(_.toLowerCase), csvData.drop(1))
     val groupedData = groupByOpt.fold(Map(DefaultDataGroup -> data)) {
@@ -37,7 +29,7 @@ object generator:
     (header, groupedData)
 
   def spliceInto(filename: String, task: String, elements: Seq[String]): Unit =
-    val fileLines: Vector[String] = Source.fromFile(filename).getLines.toVector
+    val fileLines: Vector[String] = utils.readFile(filename).getLines.toVector
 
     val (startFlag, endFlag) = (s"// $task: begin //", s"// $task: end //")
     val startIndex = fileLines.indexWhere(_.contains(startFlag))
@@ -55,7 +47,7 @@ object generator:
       + fileLines.drop(endIndex).mkString("\n")
       + "\n"
 
-    Files.write(Paths.get(filename), code.getBytes(StandardCharsets.UTF_8))
+    utils.writeFile(filename, code)
 
   class CsvCodeGenerator(
       _name: String,
