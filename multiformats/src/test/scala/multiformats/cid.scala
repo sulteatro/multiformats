@@ -1,16 +1,12 @@
-package multiformats
+package multiformats.cid
 
-import multiformats.cid.CID
-import multiformats.cid.CIDConstructorFactory
-import multiformats.cid.CIDConverterFactory
-import multiformats.cid.CIDDigestorFactory
-import multiformats.multibase.BaseAlgorithm
 import multiformats.multibase.Multibase
+import multiformats.multibase.MultibaseAlgorithm
 import multiformats.multibase.MultibaseFactory
 import multiformats.multicodec.Multicodec
 import multiformats.multicodec.MulticodecFactory
-import multiformats.multihash.HashAlgorithm
 import multiformats.multihash.Multihash
+import multiformats.multihash.MultihashAlgorithm
 import multiformats.multihash.MultihashFactory
 import multiformats.varint.VarInt
 
@@ -18,8 +14,8 @@ class CIDTests extends munit.FunSuite:
   private val cidVersion: Multicodec = Multicodec.cidv1
   private val cidContent = "I'm generating an ID for this content?"
   private val cidContentType: Multicodec = Multicodec.raw
-  private val cidHashAlgorithm: HashAlgorithm = HashAlgorithm.sha3_256
-  private val cidBaseAlgorithm: BaseAlgorithm = BaseAlgorithm.base32z
+  private val cidMultihashAlgorithm: MultihashAlgorithm = MultihashAlgorithm.sha3_256
+  private val cidMultibaseAlgorithm: MultibaseAlgorithm = MultibaseAlgorithm.base32z
 
   private val cidAddress: Array[Byte] = Array[Byte](
     22, 32, -52, 99, 39, -39, 31, -25, -43, -126, 89, -102, -64, 117, -91, -103, 17, -67, 106, -29,
@@ -121,7 +117,7 @@ class CIDTests extends munit.FunSuite:
         CID(input)
 
     invalidCIDs.foreach { case (value, msg) =>
-      testEncodedCIDConverterFailures(Multibase.encode(value, cidBaseAlgorithm), msg)
+      testEncodedCIDConverterFailures(Multibase.encode(value, cidMultibaseAlgorithm), msg)
     }
 
     invalidHumanReadableCIDs.foreach { case (value, msg) =>
@@ -224,7 +220,7 @@ class CIDTests extends munit.FunSuite:
     val (ctCodec, ctCode, ctName) = (cidContentType, cidContentType.code, cidContentType.toString)
     val ctPrefixed = cidBytes.drop(1)
 
-    val mbCodec = cidBaseAlgorithm
+    val mbCodec = cidMultibaseAlgorithm
     testEncodedCIDConstructors(ctCodec, cidAddress, mbCodec)
     testEncodedCIDConstructors(ctCode, cidAddress, mbCodec)
     testEncodedCIDConstructors(ctName, cidAddress, mbCodec)
@@ -235,7 +231,7 @@ class CIDTests extends munit.FunSuite:
     testEncodedCIDConstructors(ctCode, mhAddress, mbCodec)
     testEncodedCIDConstructors(ctPrefixed, mhAddress, mbCodec)
 
-    val mbName = cidBaseAlgorithm.toString
+    val mbName = cidMultibaseAlgorithm.toString
     testEncodedCIDConstructors(ctCodec, cidAddress, mbName)
     testEncodedCIDConstructors(ctCode, cidAddress, mbName)
     testEncodedCIDConstructors(ctName, cidAddress, mbName)
@@ -246,7 +242,7 @@ class CIDTests extends munit.FunSuite:
     testEncodedCIDConstructors(ctCode, mhAddress, mbName)
     testEncodedCIDConstructors(ctPrefixed, mhAddress, mbName)
 
-    val mbChar = cidBaseAlgorithm.character
+    val mbChar = cidMultibaseAlgorithm.character
     testEncodedCIDConstructors(ctCodec, cidAddress, mbChar)
     testEncodedCIDConstructors(ctCode, cidAddress, mbChar)
     testEncodedCIDConstructors(ctName, cidAddress, mbChar)
@@ -280,49 +276,49 @@ class CIDTests extends munit.FunSuite:
     testEncodedCIDConstructorFailures(
       badMC,
       cidAddress,
-      cidBaseAlgorithm,
+      cidMultibaseAlgorithm,
       "Invalid multicodec code: '0x05'"
     )
     testEncodedCIDConstructorFailures(
       "invalid",
       cidAddress,
-      cidBaseAlgorithm,
+      cidMultibaseAlgorithm,
       "Invalid multicodec name: 'invalid'"
     )
     testEncodedCIDConstructorFailures(
       badMC.toBytes :+ 85.toByte,
       cidAddress,
-      cidBaseAlgorithm,
+      cidMultibaseAlgorithm,
       "Invalid multicodec code: '0x05'"
     )
     testEncodedCIDConstructorFailures(
       Array(-127.toByte, -14.toByte),
       cidAddress,
-      cidBaseAlgorithm,
+      cidMultibaseAlgorithm,
       "Could not extract a varint from bytes"
     )
     testEncodedCIDConstructorFailures(
       cidContentType,
       badMC.toBytes ++ cidAddress.drop(1),
-      cidBaseAlgorithm,
+      cidMultibaseAlgorithm,
       "Invalid multicodec code: '0x05'"
     )
     testEncodedCIDConstructorFailures(
       cidContentType,
       cidAddress.updated(1, 31.toByte),
-      cidBaseAlgorithm,
+      cidMultibaseAlgorithm,
       "Mismatch between expected and realized digest sizes: 31 vs 32"
     )
     testEncodedCIDConstructorFailures(
       cidContentType,
       Array(85.toByte),
-      cidBaseAlgorithm,
+      cidMultibaseAlgorithm,
       "Invalid multihash format: could not extract code & size varints"
     )
     testEncodedCIDConstructorFailures(
       VarInt.encode(0x04),
       cidAddress,
-      cidBaseAlgorithm,
+      cidMultibaseAlgorithm,
       "Invalid content-type multicodec code: '0x04'"
     )
     testEncodedCIDConstructorFailures(
@@ -361,9 +357,9 @@ class CIDTests extends munit.FunSuite:
     val (ctCodec, ctCode, ctName) = (cidContentType, cidContentType.code, cidContentType.toString)
     val ctPrefixed = cidBytes.drop(1)
 
-    val (haCodec, haCode) = (cidHashAlgorithm, cidHashAlgorithm.code)
+    val (haCodec, haCode) = (cidMultihashAlgorithm, cidMultihashAlgorithm.code)
     val (haName, haLabel, haToString) =
-      (cidHashAlgorithm.name, cidHashAlgorithm.label, cidHashAlgorithm.toString)
+      (cidMultihashAlgorithm.name, cidMultihashAlgorithm.label, cidMultihashAlgorithm.toString)
 
     testRawCIDDigestors(cidContent, ctCodec, haCodec)
     testRawCIDDigestors(cidContent, ctCode, haCodec)
@@ -433,22 +429,22 @@ class CIDTests extends munit.FunSuite:
 
     testRawCIDDigestorFailures(
       badMC,
-      cidHashAlgorithm,
+      cidMultihashAlgorithm,
       "Invalid multicodec code: '0x05'"
     )
     testRawCIDDigestorFailures(
       "invalid",
-      cidHashAlgorithm,
+      cidMultihashAlgorithm,
       "Invalid multicodec name: 'invalid'"
     )
     testRawCIDDigestorFailures(
       badMC.toBytes :+ 85.toByte,
-      cidHashAlgorithm,
+      cidMultihashAlgorithm,
       "Invalid multicodec code: '0x05'"
     )
     testRawCIDDigestorFailures(
       Array(-127.toByte, -14.toByte),
-      cidHashAlgorithm,
+      cidMultihashAlgorithm,
       "Could not extract a varint from bytes"
     )
     testRawCIDDigestorFailures(
@@ -488,11 +484,11 @@ class CIDTests extends munit.FunSuite:
     val (ctCodec, ctCode, ctName) = (cidContentType, cidContentType.code, cidContentType.toString)
     val ctPrefixed = cidBytes.drop(1)
 
-    val (haCodec, haCode) = (cidHashAlgorithm, cidHashAlgorithm.code)
+    val (haCodec, haCode) = (cidMultihashAlgorithm, cidMultihashAlgorithm.code)
     val (haName, haLabel, haToString) =
-      (cidHashAlgorithm.name, cidHashAlgorithm.label, cidHashAlgorithm.toString)
+      (cidMultihashAlgorithm.name, cidMultihashAlgorithm.label, cidMultihashAlgorithm.toString)
 
-    val mbCodec = cidBaseAlgorithm
+    val mbCodec = cidMultibaseAlgorithm
     testEncodedCIDDigestors(cidContent, ctCodec, haCodec, mbCodec)
     testEncodedCIDDigestors(cidContent, ctCode, haCodec, mbCodec)
     testEncodedCIDDigestors(cidContent, ctName, haCodec, mbCodec)
@@ -543,7 +539,7 @@ class CIDTests extends munit.FunSuite:
     testEncodedCIDDigestors(contentBytes, ctName, haToString, mbCodec)
     testEncodedCIDDigestors(contentBytes, ctPrefixed, haToString, mbCodec)
 
-    val mbName = cidBaseAlgorithm
+    val mbName = cidMultibaseAlgorithm
     testEncodedCIDDigestors(cidContent, ctCodec, haCodec, mbName)
     testEncodedCIDDigestors(cidContent, ctCode, haCodec, mbName)
     testEncodedCIDDigestors(cidContent, ctName, haCodec, mbName)
@@ -594,7 +590,7 @@ class CIDTests extends munit.FunSuite:
     testEncodedCIDDigestors(contentBytes, ctName, haToString, mbName)
     testEncodedCIDDigestors(contentBytes, ctPrefixed, haToString, mbName)
 
-    val mbChar = cidBaseAlgorithm.character
+    val mbChar = cidMultibaseAlgorithm.character
     testEncodedCIDDigestors(cidContent, ctCodec, haCodec, mbChar)
     testEncodedCIDDigestors(cidContent, ctCode, haCodec, mbChar)
     testEncodedCIDDigestors(cidContent, ctName, haCodec, mbChar)
@@ -664,49 +660,49 @@ class CIDTests extends munit.FunSuite:
 
     testEncodedCIDDigestorFailures(
       badMC,
-      cidHashAlgorithm,
-      cidBaseAlgorithm,
+      cidMultihashAlgorithm,
+      cidMultibaseAlgorithm,
       "Invalid multicodec code: '0x05'"
     )
     testEncodedCIDDigestorFailures(
       "invalid",
-      cidHashAlgorithm,
-      cidBaseAlgorithm,
+      cidMultihashAlgorithm,
+      cidMultibaseAlgorithm,
       "Invalid multicodec name: 'invalid'"
     )
     testEncodedCIDDigestorFailures(
       badMC.toBytes :+ 85.toByte,
-      cidHashAlgorithm,
-      cidBaseAlgorithm,
+      cidMultihashAlgorithm,
+      cidMultibaseAlgorithm,
       "Invalid multicodec code: '0x05'"
     )
     testEncodedCIDDigestorFailures(
       Array(-127.toByte, -14.toByte),
-      cidHashAlgorithm,
-      cidBaseAlgorithm,
+      cidMultihashAlgorithm,
+      cidMultibaseAlgorithm,
       "Could not extract a varint from bytes"
     )
     testEncodedCIDDigestorFailures(
       cidContentType,
       VarInt.encode(0x04),
-      cidBaseAlgorithm,
+      cidMultibaseAlgorithm,
       "Unsupported multihash code: '0x04'"
     )
     testEncodedCIDDigestorFailures(
       cidContentType,
       "invalid",
-      cidBaseAlgorithm,
+      cidMultibaseAlgorithm,
       "Unsupported multihash name: 'invalid'"
     )
     testEncodedCIDDigestorFailures(
       cidContentType,
-      cidHashAlgorithm,
+      cidMultihashAlgorithm,
       "~",
       "Unsupported multibase prefix character: '~'"
     )
     testEncodedCIDDigestorFailures(
       cidContentType,
-      cidHashAlgorithm,
+      cidMultihashAlgorithm,
       "invalid",
       "Unsupported multibase codec name: 'invalid'"
     )
@@ -719,14 +715,15 @@ class CIDTests extends munit.FunSuite:
     assertEquals(CID(cidMultibase).toMultibase, cidMultibase)
 
   test("CID[Raw].encode(base) converts a CID[Raw] to a CID[Encoded] using the algorithm 'base'"):
-    assertEquals(CID(cidBytes).encode(cidBaseAlgorithm), CID(cidMultibase))
+    assertEquals(CID(cidBytes).encode(cidMultibaseAlgorithm), CID(cidMultibase))
 
   test("CID[Encoded].decode converts a CID[Encoded] to a CID[Raw]"):
     assertEquals(CID(cidMultibase).decode.toBytes.toSeq, CID(cidBytes).toBytes.toSeq)
 
   test("CID congruency (=~, !~) acts as equality between maximal shared data of two CIDs"):
     val (cidRaw1, cidEncoded1) = (CID(cidContentType, cidAddress), CID(cidMultibase))
-    val (cidRaw2, cidEncoded2) = (CID(cidBytes), CID(cidContentType, cidAddress, cidBaseAlgorithm))
+    val (cidRaw2, cidEncoded2) =
+      (CID(cidBytes), CID(cidContentType, cidAddress, cidMultibaseAlgorithm))
     assert(cidRaw1 =~ cidRaw2)
     assert(cidRaw1 =~ cidEncoded2)
     assert(cidEncoded1 =~ cidRaw2)
@@ -746,7 +743,7 @@ class CIDTests extends munit.FunSuite:
          |value =~ is not a member of multiformats.cid.CID[multiformats.cid.Raw].
          |An extension method was tried, but could not be fully constructed:
          |
-         |    multiformats.cid.=~()
+         |    multiformats.cid.CID.=~()
          |CID(Array[Byte](1, 85, 22, 1, -52)) =~ Array[Byte](1, 85, 22, 1, -52)
          |                                   ^
          |""".stripMargin
@@ -757,7 +754,7 @@ class CIDTests extends munit.FunSuite:
          |value !~ is not a member of multiformats.cid.CID[multiformats.cid.Encoded].
          |An extension method was tried, but could not be fully constructed:
          |
-         |    multiformats.cid.!~()
+         |    multiformats.cid.CID.!~()
          |CID(Multibase("z9igAq1")) !~ Multibase("z9igAq1")
          |                         ^
          |""".stripMargin
@@ -775,8 +772,8 @@ class CIDTests extends munit.FunSuite:
     assertEquals(CID(cidBytes).contentType, cidContentType)
     assertEquals(CID(cidMultibase).contentType, cidContentType)
 
-  test("CID[Encoded].encoding returns the BaseAlgorithm encoding this CID"):
-    assertEquals(CID(cidMultibase).encoding, cidBaseAlgorithm)
+  test("CID[Encoded].encoding returns the MultibaseAlgorithm encoding this CID"):
+    assertEquals(CID(cidMultibase).encoding, cidMultibaseAlgorithm)
 
   test("CID[Encoded].toHumanReadable returns the human-readable format of this CID"):
     assertEquals(CID(cidMultibase).toHumanReadable, cidHumanReadable)
@@ -786,3 +783,11 @@ class CIDTests extends munit.FunSuite:
     assertEquals(CID(cidBytes).isAddressOf(cidContent + "!"), false)
     assertEquals(CID(cidMultibase).isAddressOf(cidContent), true)
     assertEquals(CID(cidMultibase).isAddressOf("Now " + cidContent), false)
+
+  test("String context prefix 'ci' on a multibase-encoded CID returns a CID[Encoded] object"):
+    assertEquals(
+      ci"base32z - cidv1 - raw - $mhHumanReadable",
+      CID(s"base32z - cidv1 - raw - $mhHumanReadable")
+    )
+    interceptMessage[CIDValidationError]("Unsupported multibase codec name: 'base137'"):
+      ci"base137 - cidv1 - raw - $mhHumanReadable"

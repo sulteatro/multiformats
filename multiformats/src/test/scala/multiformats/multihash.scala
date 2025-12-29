@@ -1,7 +1,5 @@
-package multiformats
+package multiformats.multihash
 
-import multiformats.multihash.HashAlgorithm
-import multiformats.multihash.Multihash
 import multiformats.varint.VarInt
 
 class MultihashTests extends munit.FunSuite:
@@ -9,27 +7,27 @@ class MultihashTests extends munit.FunSuite:
 
   private def byteArray(bytes: Int*): Array[Byte] = Array(bytes*).map(_.toByte)
 
-  // multihash -> (code as bytes, size as byte, digest as bytes, HashAlgorithm, human-readable)
+  // multihash -> (code as bytes, size as byte, digest as bytes, MultihashAlgorithm, human-readable)
   // All generated with other crypto libraries from the source string above
   private val validMultihashes
-      : Map[Array[Byte], (Array[Byte], Byte, Array[Byte], HashAlgorithm, String)] =
+      : Map[Array[Byte], (Array[Byte], Byte, Array[Byte], MultihashAlgorithm, String)] =
     Vector(
       (
-        HashAlgorithm.md4,
+        MultihashAlgorithm.md4,
         byteArray(-44, 1),
         16.toByte,
         byteArray(10, -58, 112, 12, 73, 29, 112, -5, -122, 80, -108, 11, 28, -95, -28, -78),
         "md4-128-0ac6700c491d70fb8650940b1ca1e4b2"
       ),
       (
-        HashAlgorithm.md5,
+        MultihashAlgorithm.md5,
         byteArray(-43, 1),
         16.toByte,
         byteArray(-84, -67, 24, -37, 76, -62, -8, 92, -19, -17, 101, 79, -52, -60, -92, -40),
         "md5-128-acbd18db4cc2f85cedef654fccc4a4d8"
       ),
       (
-        HashAlgorithm.sha1,
+        MultihashAlgorithm.sha1,
         byteArray(17),
         20.toByte,
         byteArray(11, -18, -57, -75, -22, 63, 15, -37, -55, 93, 13, -44, 127, 60, 91, -62, 117, -38,
@@ -37,7 +35,7 @@ class MultihashTests extends munit.FunSuite:
         "sha1-160-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33"
       ),
       (
-        HashAlgorithm.sha2_224,
+        MultihashAlgorithm.sha2_224,
         byteArray(-109, 32),
         28.toByte,
         byteArray(8, 8, -10, 78, 96, -43, -119, 121, -4, -74, 118, -55, 110, -55, 56, 39, 13, -22,
@@ -45,7 +43,7 @@ class MultihashTests extends munit.FunSuite:
         "sha2-224-224-0808f64e60d58979fcb676c96ec938270dea42445aeefcd3a4e6f8db"
       ),
       (
-        HashAlgorithm.sha2_256,
+        MultihashAlgorithm.sha2_256,
         byteArray(18),
         32.toByte,
         byteArray(44, 38, -76, 107, 104, -1, -58, -113, -7, -101, 69, 60, 29, 48, 65, 52, 19, 66,
@@ -53,7 +51,7 @@ class MultihashTests extends munit.FunSuite:
         "sha2-256-256-2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
       ),
       (
-        HashAlgorithm.sha2_384,
+        MultihashAlgorithm.sha2_384,
         byteArray(32),
         48.toByte,
         byteArray(
@@ -64,7 +62,7 @@ class MultihashTests extends munit.FunSuite:
         "sha2-384-384-98c11ffdfdd540676b1a137cb1a22b2a70350c9a44171d6b1180c6be5cbb2ee3f79d532c8a1dd9ef2e8e08e752a3babb"
       ),
       (
-        HashAlgorithm.sha2_512,
+        MultihashAlgorithm.sha2_512,
         byteArray(19),
         64.toByte,
         byteArray(
@@ -76,7 +74,7 @@ class MultihashTests extends munit.FunSuite:
         "sha2-512-512-f7fbba6e0636f890e56fbbf3283e524c6fa3204ae298382d624741d0dc6638326e282c41be5e4254d8820772c5518a2c5a8c0c7f7eda19594a7eb539453e1ed7"
       ),
       (
-        HashAlgorithm.sha2_512_224,
+        MultihashAlgorithm.sha2_512_224,
         byteArray(-108, 32),
         28.toByte,
         byteArray(-42, -113, 37, -115, 55, -42, 112, -49, -63, -20, 16, 1, -96, 57, 71, -124, 35,
@@ -84,7 +82,7 @@ class MultihashTests extends munit.FunSuite:
         "sha2-512-224-224-d68f258d37d670cfc1ec1001a0394784233f88f056994f9a7e5e99be"
       ),
       (
-        HashAlgorithm.sha2_512_256,
+        MultihashAlgorithm.sha2_512_256,
         byteArray(-107, 32),
         32.toByte,
         byteArray(-43, -128, 66, -26, -86, 90, 51, 94, 3, -83, 87, 108, 106, -98, 67, -76, 21, -111,
@@ -92,7 +90,7 @@ class MultihashTests extends munit.FunSuite:
         "sha2-512-256-256-d58042e6aa5a335e03ad576c6a9e43b41591bfd2077f72dec9df7930e492055d"
       ),
       (
-        HashAlgorithm.sha3_224,
+        MultihashAlgorithm.sha3_224,
         byteArray(23),
         28.toByte,
         byteArray(-12, -10, 119, -98, 21, 60, 57, 27, -67, 41, -55, 94, 114, -80, 112, -114, 57,
@@ -100,7 +98,7 @@ class MultihashTests extends munit.FunSuite:
         "sha3-224-224-f4f6779e153c391bbd29c95e72b0708e39d9166c7cea51d1f10ef58a"
       ),
       (
-        HashAlgorithm.sha3_256,
+        MultihashAlgorithm.sha3_256,
         byteArray(22),
         32.toByte,
         byteArray(118, -45, -68, 65, -55, -11, -120, -9, -4, -48, -43, -65, 71, 24, -8, -8, 75, 28,
@@ -108,7 +106,7 @@ class MultihashTests extends munit.FunSuite:
         "sha3-256-256-76d3bc41c9f588f7fcd0d5bf4718f8f84b1c41b20882703100b9eb9413807c01"
       ),
       (
-        HashAlgorithm.sha3_384,
+        MultihashAlgorithm.sha3_384,
         byteArray(21),
         48.toByte,
         byteArray(
@@ -119,7 +117,7 @@ class MultihashTests extends munit.FunSuite:
         "sha3-384-384-665551928d13b7d84ee02734502b018d896a0fb87eed5adb4c87ba91bbd6489410e11b0fbcc06ed7d0ebad559e5d3bb5"
       ),
       (
-        HashAlgorithm.sha3_512,
+        MultihashAlgorithm.sha3_512,
         byteArray(20),
         64.toByte,
         byteArray(
@@ -131,7 +129,7 @@ class MultihashTests extends munit.FunSuite:
         "sha3-512-512-4bca2b137edc580fe50a88983ef860ebaca36c857b1f492839d6d7392452a63c82cbebc68e3b70a2a1480b4bb5d437a7cba6ecf9d89f9ff3ccd14cd6146ea7e7"
       ),
       (
-        HashAlgorithm.keccak_224,
+        MultihashAlgorithm.keccak_224,
         byteArray(26),
         28.toByte,
         byteArray(-38, -87, 77, -89, -10, -128, 107, -11, -92, -32, -81, 96, 55, -99, 117, -58, 44,
@@ -139,7 +137,7 @@ class MultihashTests extends munit.FunSuite:
         "keccak-224-224-daa94da7f6806bf5a4e0af60379d75c62cadd6be5427c16d01e76cca"
       ),
       (
-        HashAlgorithm.keccak_256,
+        MultihashAlgorithm.keccak_256,
         byteArray(27),
         32.toByte,
         byteArray(65, -79, -96, 100, -105, 82, -81, 27, 40, -77, -36, 41, -95, 85, 110, -18, 120,
@@ -147,7 +145,7 @@ class MultihashTests extends munit.FunSuite:
         "keccak-256-256-41b1a0649752af1b28b3dc29a1556eee781e4a4c3a1f7f53f90fa834de098c4d"
       ),
       (
-        HashAlgorithm.keccak_384,
+        MultihashAlgorithm.keccak_384,
         byteArray(28),
         48.toByte,
         byteArray(
@@ -158,7 +156,7 @@ class MultihashTests extends munit.FunSuite:
         "keccak-384-384-19d3f8607d2c6519443ab70bf1f7c86e9da4fda7fbcba7bfae0cab6190d24606f48334a7382c60db479d49bfd9fa815c"
       ),
       (
-        HashAlgorithm.keccak_512,
+        MultihashAlgorithm.keccak_512,
         byteArray(29),
         64.toByte,
         byteArray(
@@ -170,7 +168,7 @@ class MultihashTests extends munit.FunSuite:
         "keccak-512-512-1597842aac52bc9d13fe249d808afbf44da13524759477404c3592ee331173e89fe1cbf21a7e4360990d565fad4643cdb209d80fa41a91dea97e665022c92135"
       ),
       (
-        HashAlgorithm.blake2b_256,
+        MultihashAlgorithm.blake2b_256,
         byteArray(-96, -28, 2),
         32.toByte,
         byteArray(-72, -2, -97, -129, 98, 85, -90, -6, 8, -10, 104, -85, 99, 42, -115, 8, 26, -40,
@@ -178,7 +176,7 @@ class MultihashTests extends munit.FunSuite:
         "blake2b-256-256-b8fe9f7f6255a6fa08f668ab632a8d081ad87983c77cd274e48ce450f0b349fd"
       ),
       (
-        HashAlgorithm.blake2b_512,
+        MultihashAlgorithm.blake2b_512,
         byteArray(-64, -28, 2),
         64.toByte,
         byteArray(
@@ -190,14 +188,14 @@ class MultihashTests extends munit.FunSuite:
         "blake2b-512-512-ca002330e69d3e6b84a46a56a6533fd79d51d97a3bb7cad6c2ff43b354185d6dc1e723fb3db4ae0737e120378424c714bb982d9dc5bbd7a0ab318240ddd18f8d"
       ),
       (
-        HashAlgorithm.blake2s_128,
+        MultihashAlgorithm.blake2s_128,
         byteArray(-48, -28, 2),
         16.toByte,
         byteArray(68, 71, -46, 9, 33, -17, -28, 16, 60, 86, -90, -107, -36, -86, -6, 56),
         "blake2s-128-128-4447d20921efe4103c56a695dcaafa38"
       ),
       (
-        HashAlgorithm.blake2s_256,
+        MultihashAlgorithm.blake2s_256,
         byteArray(-32, -28, 2),
         32.toByte,
         byteArray(8, -42, -54, -40, -128, 117, -34, -113, 25, 45, -80, -105, 87, 61, 14, -126, -108,
@@ -205,7 +203,7 @@ class MultihashTests extends munit.FunSuite:
         "blake2s-256-256-08d6cad88075de8f192db097573d0e829411cd91eb6ec65e8fc16c017edfdb74"
       ),
       (
-        HashAlgorithm.blake3,
+        MultihashAlgorithm.blake3,
         byteArray(30),
         32.toByte,
         byteArray(4, -32, -69, 57, -13, 11, 26, 63, -21, -119, -11, 54, -55, 59, -31, 80, 85, 72,
@@ -216,13 +214,13 @@ class MultihashTests extends munit.FunSuite:
       ((code :+ size.toByte) ++ digest) -> (code, size, digest, ha, hrString)
     }.toMap
 
-  private val invalidMultihashes: Map[(HashAlgorithm, Array[Byte]), String] = Map(
+  private val invalidMultihashes: Map[(MultihashAlgorithm, Array[Byte]), String] = Map(
     (
-      HashAlgorithm.sha1,
+      MultihashAlgorithm.sha1,
       byteArray(17, 20, 11, -18, -57, -75, -22, 63, 15, -37, -55, 93)
     ) -> "Mismatch between expected and realized digest sizes: 20 vs 10",
     (
-      HashAlgorithm.sha1,
+      MultihashAlgorithm.sha1,
       byteArray(17, -11, -63, -15)
     ) -> "Invalid multihash format: could not extract code & size varints"
   )
@@ -276,7 +274,7 @@ class MultihashTests extends munit.FunSuite:
     }
 
   test(
-    "Multihash.validated(Array[Byte], HashAlgorithm|VarInt|String) returns Right[Multihash] for a supported algorithm"
+    "Multihash.validated(Array[Byte], MultihashAlgorithm|VarInt|String) returns Right[Multihash] for a supported algorithm"
   ):
     validMultihashes.foreach { case (value, (_, _, digest, algo, _)) =>
       assertEquals(Multihash.validated(digest, algo).map(_.toBytes.toSeq), Right(value.toSeq))
@@ -285,7 +283,7 @@ class MultihashTests extends munit.FunSuite:
     }
 
   test(
-    "Multihash.validated(Array[Byte], HashAlgorithm|VarInt|String) returns Left[String] for an unsupported algorithm"
+    "Multihash.validated(Array[Byte], MultihashAlgorithm|VarInt|String) returns Left[String] for an unsupported algorithm"
   ):
     invalidCodeAndDigest.foreach { case ((code, digest), msg) =>
       assertEquals(Multihash.validated(digest, code).map(_.toBytes.toSeq), Left(msg))
@@ -295,7 +293,7 @@ class MultihashTests extends munit.FunSuite:
     }
 
   test(
-    "Multihash.ifValid(Array[Byte], HashAlgorithm|VarInt|String) returns Some[Multihash] for a supported algorithm"
+    "Multihash.ifValid(Array[Byte], MultihashAlgorithm|VarInt|String) returns Some[Multihash] for a supported algorithm"
   ):
     validMultihashes.foreach { case (value, (_, _, digest, algo, _)) =>
       assertEquals(Multihash.ifValid(digest, algo).map(_.toBytes.toSeq), Some(value.toSeq))
@@ -304,7 +302,7 @@ class MultihashTests extends munit.FunSuite:
     }
 
   test(
-    "Multihash.ifValid(Array[Byte], HashAlgorithm|VarInt|String) returns None for an unsupported algorithm"
+    "Multihash.ifValid(Array[Byte], MultihashAlgorithm|VarInt|String) returns None for an unsupported algorithm"
   ):
     invalidCodeAndDigest.foreach { case ((code, digest), _) =>
       assertEquals(Multihash.ifValid(digest, code).map(_.toBytes.toSeq), None)
@@ -314,7 +312,7 @@ class MultihashTests extends munit.FunSuite:
     }
 
   test(
-    "Multihash(Array[Byte], HashAlgorithm|VarInt|String) returns Multihash for a supported algorithm"
+    "Multihash(Array[Byte], MultihashAlgorithm|VarInt|String) returns Multihash for a supported algorithm"
   ):
     validMultihashes.foreach { case (value, (_, _, digest, algo, _)) =>
       assertEquals(Multihash(digest, algo).toBytes.toSeq, value.toSeq)
@@ -322,7 +320,9 @@ class MultihashTests extends munit.FunSuite:
       assertEquals(Multihash(digest, algo.name).toBytes.toSeq, value.toSeq)
     }
 
-  test("Multihash(Array[Byte], HashAlgorithm|VarInt|String) throws for an unsupported algorithm"):
+  test(
+    "Multihash(Array[Byte], MultihashAlgorithm|VarInt|String) throws for an unsupported algorithm"
+  ):
     invalidCodeAndDigest.foreach { case ((code, digest), msg) =>
       interceptMessage[MultihashValidationError](msg):
         Multihash(digest, code)
@@ -364,7 +364,7 @@ class MultihashTests extends munit.FunSuite:
     }
 
   test(
-    "Multihash.digestValidated(Array[Byte], HashAlgorithm|VarInt|String) returns Right[Multihash] on success"
+    "Multihash.digestValidated(Array[Byte], MultihashAlgorithm|VarInt|String) returns Right[Multihash] on success"
   ):
     validMultihashes.foreach { case (value, (_, _, _, algo, _)) =>
       assertEquals(Multihash.digestValidated(source, algo).map(_.toBytes.toSeq), Right(value.toSeq))
@@ -379,7 +379,7 @@ class MultihashTests extends munit.FunSuite:
     }
 
   test(
-    "Multihash.digestValidated(Array[Byte], HashAlgorithm|VarInt|String) returns Left[String] on failure"
+    "Multihash.digestValidated(Array[Byte], MultihashAlgorithm|VarInt|String) returns Left[String] on failure"
   ):
     invalidCodeAndDigest.foreach { case ((code, _), msg) =>
       assertEquals(Multihash.digestValidated(source, code).map(_.toBytes.toSeq), Left(msg))
@@ -389,7 +389,7 @@ class MultihashTests extends munit.FunSuite:
     }
 
   test(
-    "Multihash.digestIfValid(Array[Byte], HashAlgorithm|VarInt|String) returns Some[Multihash] on success"
+    "Multihash.digestIfValid(Array[Byte], MultihashAlgorithm|VarInt|String) returns Some[Multihash] on success"
   ):
     validMultihashes.foreach { case (value, (_, _, _, algo, _)) =>
       assertEquals(Multihash.digestIfValid(source, algo).map(_.toBytes.toSeq), Some(value.toSeq))
@@ -403,7 +403,9 @@ class MultihashTests extends munit.FunSuite:
       )
     }
 
-  test("Multihash.digestIfValid(Array[Byte], HashAlgorithm|VarInt|String) returns None on failure"):
+  test(
+    "Multihash.digestIfValid(Array[Byte], MultihashAlgorithm|VarInt|String) returns None on failure"
+  ):
     invalidCodeAndDigest.foreach { case ((code, _), _) =>
       assertEquals(Multihash.digestIfValid(source, code).map(_.toBytes.toSeq), None)
     }
@@ -411,14 +413,16 @@ class MultihashTests extends munit.FunSuite:
       assertEquals(Multihash.digestIfValid(source, code).map(_.toBytes.toSeq), None)
     }
 
-  test("Multihash.digest(Array[Byte], HashAlgorithm|VarInt|String) returns Multihash on success"):
+  test(
+    "Multihash.digest(Array[Byte], MultihashAlgorithm|VarInt|String) returns Multihash on success"
+  ):
     validMultihashes.foreach { case (value, (_, _, _, algo, _)) =>
       assertEquals(Multihash.digest(source, algo).toBytes.toSeq, value.toSeq)
       assertEquals(Multihash.digest(source, algo.code).toBytes.toSeq, value.toSeq)
       assertEquals(Multihash.digest(source, algo.name).toBytes.toSeq, value.toSeq)
     }
 
-  test("Multihash.digest(Array[Byte], HashAlgorithm|VarInt|String) throws on failure"):
+  test("Multihash.digest(Array[Byte], MultihashAlgorithm|VarInt|String) throws on failure"):
     invalidCodeAndDigest.foreach { case ((code, _), msg) =>
       interceptMessage[MultihashValidationError](msg):
         Multihash.digest(source, code)
@@ -465,7 +469,7 @@ class MultihashTests extends munit.FunSuite:
       assertEquals(Multihash(value).code, VarInt(code))
     }
 
-  test("multihash.algorithm returns the HashAlgorithm instance for its multicodec code"):
+  test("multihash.algorithm returns the MultihashAlgorithm instance for its multicodec code"):
     validMultihashes.foreach { case (value, (_, _, _, algo, _)) =>
       assertEquals(Multihash(value).algorithm, algo)
     }
@@ -484,3 +488,12 @@ class MultihashTests extends munit.FunSuite:
     validMultihashes.foreach { case (value, (_, _, _, _, hrString)) =>
       assertEquals(Multihash(value).toHumanReadable, hrString)
     }
+
+  test("String context prefix 'mh' on a human-readable hash string returns a Multihash object"):
+    assert(
+      mh"md4-128-0ac6700c491d70fb8650940b1ca1e4b2" =~ Multihash(
+        "md4-128-0ac6700c491d70fb8650940b1ca1e4b2"
+      )
+    )
+    interceptMessage[MultihashValidationError]("Unsupported multihash name: 'hash-one'"):
+      mh"hash-one-160-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33"

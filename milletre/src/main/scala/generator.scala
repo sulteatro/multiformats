@@ -1,8 +1,11 @@
 package milletre
 
-import scala.io.{Source, BufferedSource}
 import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Path, Paths}
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+import scala.io.BufferedSource
+import scala.io.Source
 
 final case class CodeGenerationError(
     private val message: String = "",
@@ -54,9 +57,13 @@ object generator:
 
     Files.write(Paths.get(filename), code.getBytes(StandardCharsets.UTF_8))
 
-  class CsvCodeGenerator(_name: String, val source: String, groupByOpt: Option[Map[String, String] => String] = None):
+  class CsvCodeGenerator(
+      _name: String,
+      val source: String,
+      groupByOpt: Option[Map[String, String] => String] = None
+  ):
     val name: String = _name.toLowerCase
-    lazy private val typePrefix = name.capitalize
+    private lazy val typePrefix = name.capitalize
 
     case class CsvField(
         name: String,
@@ -70,19 +77,24 @@ object generator:
         val escapedValue = escapeIfKeyword(value)
         transform.map(_(value)).getOrElse(
           innerType.getOrElse(typeName) match
-            case "String" => if asDef then escapeIfKeyword(value) else "\"" + value.replace("\"", "\\\"") + "\""
+            case "String" =>
+              if asDef then escapeIfKeyword(value) else "\"" + value.replace("\"", "\\\"") + "\""
             case s"Option[${inner}]" =>
               if value.isEmpty then "None" else s"Some(${format(value, asDef, Some(inner))})"
-            case _  =>
+            case _ =>
               (if asDef || !isEnum then "" else s"$annotation.") + escapeIfKeyword(value)
         )
 
     val IndentationSize = 2
-    lazy private val indent = " ".repeat(IndentationSize)
+    private lazy val indent = " ".repeat(IndentationSize)
 
     private val (header, groupedData) = readCSV(source, groupByOpt = groupByOpt)
 
-    private def indexedCases(field: CsvField, asDef: Boolean, data: Vector[Array[String]]): Seq[(String, Int)] = 
+    private def indexedCases(
+        field: CsvField,
+        asDef: Boolean,
+        data: Vector[Array[String]]
+    ): Seq[(String, Int)] =
       Option(header.indexWhere(_ == field.name)).filterNot(_ < 0)
         .map(i =>
           data.zipWithIndex.flatMap((row, j) => row.lift(i).map(v => field.format(v, asDef) -> j))
@@ -94,7 +106,8 @@ object generator:
       val valName: String = s"$name${vecName.toLowerCase.capitalize}"
       val vectorDef: String = s"val $valName: Vector[${vecField.annotation}] = Vector("
 
-      val values: Seq[String] = indexedCases(vecField, false, groupedData(groupKey)).map(_.head).distinct.sorted
+      val values: Seq[String] =
+        indexedCases(vecField, false, groupedData(groupKey)).map(_.head).distinct.sorted
       if values.size < 10 then
         values.mkString(vectorDef, ", ", ")")
       else
@@ -106,7 +119,8 @@ object generator:
         dataFieldsOpt: Option[Seq[CsvField]] = None,
         groupKey: String = DefaultDataGroup
     ): String =
-      val enumName: String = s"$typePrefix${nameOpt.getOrElse(enumField.name).toLowerCase.capitalize}"
+      val enumName: String =
+        s"$typePrefix${nameOpt.getOrElse(enumField.name).toLowerCase.capitalize}"
       val enumDef: String = s"enum ${enumName}" + dataFieldsOpt.fold("") {
         _.map(dataField =>
           if !header.contains(dataField.name) then

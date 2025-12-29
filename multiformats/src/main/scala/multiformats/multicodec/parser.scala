@@ -685,3 +685,6 @@ object Multicodec:
     c.convert(value).toOption
   def apply[T](value: T)(using c: MulticodecFactory[T]): Multicodec =
     c.convert(value).fold(error => throw MulticodecValidationError(error), x => x)
+
+extension (sc: StringContext)
+  def mc(args: Any*): Multicodec = Multicodec(sc.s(args*))

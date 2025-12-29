@@ -207,15 +207,18 @@ object Multibase:
   def encode[V, C](value: V, code: C)(using c: MultibaseFactory[V, C]): Multibase =
     c.encode(value, code).fold(error => throw MultibaseValidationError(error), identity)
 
-extension (mb: Multibase)
-  def =~(other: Multibase): Boolean = mb.equals(other)
-  def !~(other: Multibase): Boolean = !(mb =~ other)
+  extension (mb: Multibase)
+    def =~(other: Multibase): Boolean = mb.equals(other)
+    def !~(other: Multibase): Boolean = !(mb =~ other)
 
-  def toBytes: Array[Byte] = mb.getBytes
+    def toBytes: Array[Byte] = mb.getBytes
 
-  def prefix: String = mb.take(1)
-  def data: String = mb.drop(1)
-  def encoding: MultibaseAlgorithm = MultibaseAlgorithm.byChar(prefix).toOption.get
-  def encoder: Encoding[?] = encoding.encoder.toOption.get
+    def prefix: String = mb.take(1)
+    def data: String = mb.drop(1)
+    def encoding: MultibaseAlgorithm = MultibaseAlgorithm.byChar(prefix).toOption.get
+    def encoder: Encoding[?] = encoding.encoder.toOption.get
 
-  def decode: Array[Byte] = encoder.decode(data)
+    def decode: Array[Byte] = encoder.decode(data)
+
+extension (sc: StringContext)
+  def mb(args: Any*): Multibase = Multibase(sc.s(args*))

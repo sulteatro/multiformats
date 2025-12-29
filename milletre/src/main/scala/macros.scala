@@ -1,7 +1,8 @@
 package milletre
 
+import java.nio.file.Path
+import java.nio.file.Paths
 import scala.quoted.*
-import java.nio.file.{Path, Paths}
 
 object macros:
   def currentFilePath(using Quotes): Expr[Path] =

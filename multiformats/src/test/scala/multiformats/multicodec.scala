@@ -1,6 +1,5 @@
-package multiformats
+package multiformats.multicodec
 
-import multiformats.multicodec.Multicodec
 import multiformats.varint.VarInt
 
 class MulticodecTests extends munit.FunSuite:
@@ -96,3 +95,8 @@ class MulticodecTests extends munit.FunSuite:
   ):
     interceptMessage[MulticodecValidationError]("Invalid multicodec code: '0xffffffffffffff7f'"):
       Multicodec(Array[Byte](-1, -1, -1, -1, -1, -1, -1, 127, 20, 10, 1))
+
+  test("String context prefix 'mc' returns a Multicodec instance"):
+    assertEquals(mc"identity", Multicodec.identity)
+    interceptMessage[MulticodecValidationError]("Invalid multicodec name: 'INVALID'"):
+      mc"INVALID"

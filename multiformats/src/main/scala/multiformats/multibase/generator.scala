@@ -1,6 +1,9 @@
 package multiformats.multibase
 
-import milletre.generator.{CsvCodeGenerator, DefaultDataGroup, spliceInto, currentFilePath}
+import milletre.generator.CsvCodeGenerator
+import milletre.generator.DefaultDataGroup
+import milletre.generator.currentFilePath
+import milletre.generator.spliceInto
 
 @main def generate(): Unit =
   val gen: CsvCodeGenerator = new CsvCodeGenerator(
@@ -23,7 +26,7 @@ import milletre.generator.{CsvCodeGenerator, DefaultDataGroup, spliceInto, curre
   val multibaseEnumCode =
     gen.asEnum(encoding, Some("Algorithm"), Some(Seq(unicode, description, status)))
 
-  val targetFile: String = currentFilePath.resolveSibling("base.scala").toString
+  val targetFile: String = currentFilePath.resolveSibling("parser.scala").toString
   spliceInto(
     targetFile,
     "generateMultibase",
