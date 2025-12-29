@@ -1,5 +1,3 @@
-import GenerateTasks.autoImport.*
-
 val scala3Version = "3.7.3"
 
 inThisBuild(
@@ -8,6 +6,9 @@ inThisBuild(
     semanticdbEnabled := true
   )
 )
+
+lazy val generateMulticodec = taskKey[Unit]("Rewrite the Multicodec enums from the source of truth")
+lazy val generateMultibase = taskKey[Unit]("Rewrite the Multibase enums from the source of truth")
 
 lazy val root = project
   .in(file("."))
@@ -51,7 +52,9 @@ lazy val multiformats = project
       "org.scalameta" %% "munit" % "1.0.0" % Test,
       "org.bouncycastle" % "bcprov-jdk18on" % "1.80"
     ),
-    packageSrc / publishArtifact := true
+    packageSrc / publishArtifact := true,
+    generateMulticodec := (Compile / runMain).toTask(" multiformats.multicodec.generate").value,
+    generateMultibase := (Compile / runMain).toTask(" multiformats.multibase.generate").value
   )
 
 // Corrects a bug in tab completion in sbt console - see link to joern-cli
