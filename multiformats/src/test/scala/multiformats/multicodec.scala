@@ -1,5 +1,6 @@
 package multiformats.multicodec
 
+import milletre.constructor.ValidationError
 import multiformats.varint.VarInt
 
 class MulticodecTests extends munit.FunSuite:
@@ -28,7 +29,7 @@ class MulticodecTests extends munit.FunSuite:
     assertEquals(Multicodec(VarInt.encode(0x0111)), Multicodec.udp)
 
   test("Multicodec(VarInt) throws for an invalid code"):
-    interceptMessage[MulticodecValidationError]("Invalid multicodec code: '0xffffffffffffff7f'"):
+    interceptMessage[ValidationError[Multicodec]]("Invalid multicodec code: '0xffffffffffffff7f'"):
       Multicodec(VarInt(BigInt("18446744073709551487")))
 
   test("Multicodec.validated(String) returns Right[Multicodec] for a valid name"):
@@ -56,7 +57,7 @@ class MulticodecTests extends munit.FunSuite:
     assertEquals(Multicodec("udp"), Multicodec.udp)
 
   test("Multicodec(String) throws for an invalid name"):
-    interceptMessage[MulticodecValidationError]("Invalid multicodec name: 'INVALID'"):
+    interceptMessage[ValidationError[Multicodec]]("Invalid multicodec name: 'INVALID'"):
       Multicodec("INVALID")
 
   test(
@@ -93,10 +94,10 @@ class MulticodecTests extends munit.FunSuite:
   test(
     "Multicodec.validated(Array[Byte]) returns Left[String] if the array does not start with a valid code"
   ):
-    interceptMessage[MulticodecValidationError]("Invalid multicodec code: '0xffffffffffffff7f'"):
+    interceptMessage[ValidationError[Multicodec]]("Invalid multicodec code: '0xffffffffffffff7f'"):
       Multicodec(Array[Byte](-1, -1, -1, -1, -1, -1, -1, 127, 20, 10, 1))
 
   test("String context prefix 'mc' returns a Multicodec instance"):
     assertEquals(mc"identity", Multicodec.identity)
-    interceptMessage[MulticodecValidationError]("Invalid multicodec name: 'INVALID'"):
+    interceptMessage[ValidationError[Multicodec]]("Invalid multicodec name: 'INVALID'"):
       mc"INVALID"

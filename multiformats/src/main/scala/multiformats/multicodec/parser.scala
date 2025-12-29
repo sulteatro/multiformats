@@ -1,11 +1,7 @@
 package multiformats.multicodec
 
+import milletre.constructor.*
 import multiformats.varint.VarInt
-
-final case class MulticodecValidationError(
-    private val message: String = "",
-    private val cause: Throwable = None.orNull
-) extends Exception(message, cause)
 
 // format: off
 // generateMulticodec: begin //
@@ -644,47 +640,39 @@ enum Multicodec(val tag: MulticodecTag, val code: VarInt, val status: Multicodec
 // generateMulticodec: end //
 // format: on
 
-sealed trait MulticodecFactory[V]:
-  def convert(value: V): Either[String, Multicodec]
-
-object MulticodecFactory:
-  given MulticodecFactory[Multicodec] =
-    new MulticodecFactory[Multicodec]:
-      def convert(value: Multicodec): Either[String, Multicodec] = Right(value)
-
+//
+// Factory objects for creating a multicodec from various input types
+//
+trait MulticodecIngest[V] extends EitherConversion[V, Multicodec]
+object MulticodecIngest:
   private lazy val codeToCodec: Map[VarInt, Multicodec] =
     Multicodec.values.map(multicodec => multicodec.code -> multicodec).toMap
 
-  given codeFactory: MulticodecFactory[VarInt] =
-    new MulticodecFactory[VarInt]:
-      def convert(value: VarInt): Either[String, Multicodec] =
-        codeToCodec.get(value).toRight(s"Invalid multicodec code: '${value.toHex}'")
+  private def getByCode(vi: VarInt): Either[String, Multicodec] =
+    codeToCodec.get(vi).toRight(s"Invalid multicodec code: '${vi.toHex}'")
 
   private lazy val nameToCodec: Map[String, Multicodec] =
     Multicodec.values.map(multicodec => multicodec.toString -> multicodec).toMap
 
-  given MulticodecFactory[String] =
-    new MulticodecFactory[String]:
-      def convert(value: String): Either[String, Multicodec] =
-        nameToCodec.get(value).toRight(s"Invalid multicodec name: '$value'")
+  private def getByName(n: String): Either[String, Multicodec] =
+    nameToCodec.get(n).toRight(s"Invalid multicodec name: '$n'")
 
-  given MulticodecFactory[Array[Byte]] =
-    new MulticodecFactory[Array[Byte]]:
-      def convert(value: Array[Byte]): Either[String, Multicodec] =
-        VarInt.sequence(value, 1) match
-          case (Array(code), _) => codeFactory.convert(code)
-          case _                => Left("Could not extract a varint from bytes")
+  given MulticodecIngest[Multicodec] = v => Right(v)
+  given MulticodecIngest[VarInt] = v => getByCode(v)
+  given MulticodecIngest[String] = v => getByName(v)
+  given MulticodecIngest[Array[Byte]] =
+    v =>
+      VarInt.sequence(v, 1) match
+        case (Array(code), _) => getByCode(code)
+        case _                => Left("Could not extract a varint from bytes")
 
 //
 // Public object interface for getting a multicodec from a value
 //
-object Multicodec:
-  def validated[T](value: T)(using c: MulticodecFactory[T]): Either[String, Multicodec] =
-    c.convert(value)
-  def ifValid[T](value: T)(using c: MulticodecFactory[T]): Option[Multicodec] =
-    c.convert(value).toOption
-  def apply[T](value: T)(using c: MulticodecFactory[T]): Multicodec =
-    c.convert(value).fold(error => throw MulticodecValidationError(error), x => x)
+object Multicodec extends ClearConstructor[Multicodec, MulticodecIngest]
 
+//
+// String context extension with which a multicodec can be constructed like mc"identity", etc.
+//
 extension (sc: StringContext)
   def mc(args: Any*): Multicodec = Multicodec(sc.s(args*))

@@ -4,7 +4,7 @@ import multiformats.multibase.Multibase
 import multiformats.multibase.MultibaseAlgorithm
 import multiformats.multibase.MultibaseFactory
 import multiformats.multicodec.Multicodec
-import multiformats.multicodec.MulticodecFactory
+import multiformats.multicodec.MulticodecIngest
 import multiformats.multihash.Multihash
 import multiformats.multihash.MultihashAlgorithm
 import multiformats.multihash.MultihashFactory
@@ -128,7 +128,7 @@ class CIDTests extends munit.FunSuite:
     val expected = cidBytes.toSeq
 
     def testRawCIDConstructors[T, A](contentType: T, address: A)(using
-        MulticodecFactory[T],
+        MulticodecIngest[T],
         CIDConstructorFactory[A]
     ): Unit =
       assertEquals(CID.validated(contentType, address).map(_.toBytes.toSeq), Right(expected))
@@ -152,7 +152,7 @@ class CIDTests extends munit.FunSuite:
 
   test("CID constructors for address and content type perform failure modes for invalid CIDs"):
     def testRawCIDConstructorFailures[T, A](contentType: T, address: A, msg: String)(using
-        MulticodecFactory[T],
+        MulticodecIngest[T],
         CIDConstructorFactory[A]
     ): Unit =
       assertEquals(CID.validated(contentType, address), Left(msg))
@@ -207,7 +207,7 @@ class CIDTests extends munit.FunSuite:
     val expected = cidMultibase.toString
 
     def testEncodedCIDConstructors[T, A, B](contentType: T, address: A, base: B)(using
-        MulticodecFactory[T],
+        MulticodecIngest[T],
         CIDConstructorFactory[A],
         MultibaseFactory[Array[Byte], B]
     ): Unit =
@@ -262,7 +262,7 @@ class CIDTests extends munit.FunSuite:
         base: B,
         msg: String
     )(using
-        MulticodecFactory[T],
+        MulticodecIngest[T],
         CIDConstructorFactory[A],
         MultibaseFactory[Array[Byte], B]
     ): Unit =
@@ -339,7 +339,7 @@ class CIDTests extends munit.FunSuite:
 
     def testRawCIDDigestors[C, T, H](content: C, contentType: T, hash: H)(using
         CIDDigestorFactory[C],
-        MulticodecFactory[T],
+        MulticodecIngest[T],
         MultihashFactory[H]
     ): Unit =
       assertEquals(
@@ -417,7 +417,7 @@ class CIDTests extends munit.FunSuite:
     val expected = cidBytes.toSeq
 
     def testRawCIDDigestorFailures[T, H](contentType: T, hash: H, msg: String)(using
-        MulticodecFactory[T],
+        MulticodecIngest[T],
         MultihashFactory[H]
     ): Unit =
       assertEquals(CID.digestValidated(cidContent, contentType, hash), Left(msg))
@@ -465,7 +465,7 @@ class CIDTests extends munit.FunSuite:
 
     def testEncodedCIDDigestors[C, T, H, B](content: C, contentType: T, hash: H, base: B)(using
         CIDDigestorFactory[C],
-        MulticodecFactory[T],
+        MulticodecIngest[T],
         MultihashFactory[H],
         MultibaseFactory[Array[Byte], B]
     ): Unit =
@@ -647,7 +647,7 @@ class CIDTests extends munit.FunSuite:
     val expected = cidBytes.toSeq
 
     def testEncodedCIDDigestorFailures[T, H, B](contentType: T, hash: H, base: B, msg: String)(using
-        MulticodecFactory[T],
+        MulticodecIngest[T],
         MultihashFactory[H],
         MultibaseFactory[Array[Byte], B]
     ): Unit =

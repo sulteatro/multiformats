@@ -4,7 +4,7 @@ import multiformats.multibase.Multibase
 import multiformats.multibase.MultibaseAlgorithm
 import multiformats.multibase.MultibaseFactory
 import multiformats.multicodec.Multicodec
-import multiformats.multicodec.MulticodecFactory
+import multiformats.multicodec.MulticodecIngest
 import multiformats.multicodec.MulticodecTag
 import multiformats.multihash.Multihash
 import multiformats.multihash.MultihashAlgorithm
@@ -120,21 +120,21 @@ sealed trait CIDConstructorFactory[A]:
   def toMultihash(value: A): Either[String, Multihash]
 
   private def convertRawArguments[T](typeSource: T, addressSource: A)(using
-      mcf: MulticodecFactory[T]
+      mcf: MulticodecIngest[T]
   ): Either[String, (Multicodec, Multihash)] =
     mcf.convert(typeSource).map { contentType =>
       toMultihash(addressSource).map((contentType, _))
     }.joinRight
 
   def constructRaw[T](typeSource: T, addressSource: A)(using
-      MulticodecFactory[T]
+      MulticodecIngest[T]
   ): Either[String, Array[Byte]] =
     convertRawArguments(typeSource, addressSource).map { case (contentType, contentAddress) =>
       buildCID(contentType, contentAddress)
     }.joinRight
 
   def constructEncoded[T, B](typeSource: T, addressSource: A, base: B)(using
-      MulticodecFactory[T],
+      MulticodecIngest[T],
       MultibaseFactory[Array[Byte], B]
   ): Either[String, Multibase] =
     convertRawArguments(typeSource, addressSource).map { case (contentType, contentAddress) =>
@@ -158,7 +158,7 @@ sealed trait CIDDigestorFactory[C]:
   def toByteArray(value: C): Array[Byte]
 
   private def convertRawArguments[T, H](typeSource: T, hashSource: H)(using
-      mcf: MulticodecFactory[T],
+      mcf: MulticodecIngest[T],
       mhf: MultihashFactory[H]
   ): Either[String, (Multicodec, MultihashAlgorithm)] =
     mcf.convert(typeSource).map { contentType =>
@@ -166,7 +166,7 @@ sealed trait CIDDigestorFactory[C]:
     }.joinRight
 
   def digestRaw[T, H](contentSource: C, typeSource: T, hashSource: H)(using
-      mcf: MulticodecFactory[T],
+      mcf: MulticodecIngest[T],
       mhf: MultihashFactory[H]
   ): Either[String, Array[Byte]] =
     convertRawArguments(typeSource, hashSource).map { case (contentType, hashAlgorithm) =>
@@ -174,7 +174,7 @@ sealed trait CIDDigestorFactory[C]:
     }.joinRight
 
   def digestEncoded[T, H, B](contentSource: C, typeSource: T, hashSource: H, base: B)(using
-      mcf: MulticodecFactory[T],
+      mcf: MulticodecIngest[T],
       mhf: MultihashFactory[H],
       mbf: MultibaseFactory[Array[Byte], B]
   ): Either[String, Multibase] =
@@ -226,35 +226,35 @@ object CID:
   //
   def validated[T, A](contentType: T, address: A)(using
       c: CIDConstructorFactory[A],
-      mcf: MulticodecFactory[T]
+      mcf: MulticodecIngest[T]
   ): Either[String, CID[Raw]] = c.constructRaw(contentType, address)
 
   def ifValid[T, A](contentType: T, address: A)(using
       c: CIDConstructorFactory[A],
-      mcf: MulticodecFactory[T]
+      mcf: MulticodecIngest[T]
   ): Option[CID[Raw]] = c.constructRaw(contentType, address).toOption
 
   def apply[T, A](contentType: T, address: A)(using
       c: CIDConstructorFactory[A],
-      mcf: MulticodecFactory[T]
+      mcf: MulticodecIngest[T]
   ): CID[Raw] =
     c.constructRaw(contentType, address).fold(error => throw CIDValidationError(error), identity)
 
   def validated[T, A, B](contentType: T, address: A, base: B)(using
       c: CIDConstructorFactory[A],
-      mcf: MulticodecFactory[T],
+      mcf: MulticodecIngest[T],
       mbf: MultibaseFactory[Array[Byte], B]
   ): Either[String, CID[Encoded]] = c.constructEncoded(contentType, address, base)
 
   def ifValid[T, A, B](contentType: T, address: A, base: B)(using
       c: CIDConstructorFactory[A],
-      mcf: MulticodecFactory[T],
+      mcf: MulticodecIngest[T],
       mbf: MultibaseFactory[Array[Byte], B]
   ): Option[CID[Encoded]] = c.constructEncoded(contentType, address, base).toOption
 
   def apply[T, A, B](contentType: T, address: A, base: B)(using
       c: CIDConstructorFactory[A],
-      mcf: MulticodecFactory[T],
+      mcf: MulticodecIngest[T],
       mbf: MultibaseFactory[Array[Byte], B]
   ): CID[Encoded] =
     c.constructEncoded(contentType, address, base)
@@ -267,19 +267,19 @@ object CID:
   //
   def digestValidated[C, T, H](content: C, contentType: T, hash: H)(using
       c: CIDDigestorFactory[C],
-      mcf: MulticodecFactory[T],
+      mcf: MulticodecIngest[T],
       mhf: MultihashFactory[H]
   ): Either[String, CID[Raw]] = c.digestRaw(content, contentType, hash)
 
   def digestIfValid[C, T, H](content: C, contentType: T, hash: H)(using
       c: CIDDigestorFactory[C],
-      mcf: MulticodecFactory[T],
+      mcf: MulticodecIngest[T],
       mhf: MultihashFactory[H]
   ): Option[CID[Raw]] = c.digestRaw(content, contentType, hash).toOption
 
   def digest[C, T, H](content: C, contentType: T, hash: H)(using
       c: CIDDigestorFactory[C],
-      mcf: MulticodecFactory[T],
+      mcf: MulticodecIngest[T],
       mhf: MultihashFactory[H]
   ): CID[Raw] =
     c.digestRaw(content, contentType, hash).fold(
@@ -289,21 +289,21 @@ object CID:
 
   def digestValidated[C, T, H, B](content: C, contentType: T, hash: H, base: B)(using
       c: CIDDigestorFactory[C],
-      mcf: MulticodecFactory[T],
+      mcf: MulticodecIngest[T],
       mhf: MultihashFactory[H],
       mbf: MultibaseFactory[Array[Byte], B]
   ): Either[String, CID[Encoded]] = c.digestEncoded(content, contentType, hash, base)
 
   def digestIfValid[C, T, H, B](content: C, contentType: T, hash: H, base: B)(using
       c: CIDDigestorFactory[C],
-      mcf: MulticodecFactory[T],
+      mcf: MulticodecIngest[T],
       mhf: MultihashFactory[H],
       mbf: MultibaseFactory[Array[Byte], B]
   ): Option[CID[Encoded]] = c.digestEncoded(content, contentType, hash, base).toOption
 
   def digest[C, T, H, B](content: C, contentType: T, hash: H, base: B)(using
       c: CIDDigestorFactory[C],
-      mcf: MulticodecFactory[T],
+      mcf: MulticodecIngest[T],
       mhf: MultihashFactory[H],
       mbf: MultibaseFactory[Array[Byte], B]
   ): CID[Encoded] =
@@ -327,7 +327,7 @@ object CID:
 
     def isAddressOf[C](content: C)(using
         CIDDigestorFactory[C],
-        MulticodecFactory[Multicodec],
+        MulticodecIngest[Multicodec],
         MultihashFactory[MultihashAlgorithm]
     ): Boolean = cidRaw =~ CID.digest(content, contentType, address.algorithm)
 
@@ -357,7 +357,7 @@ object CID:
 
     def isAddressOf[C](content: C)(using
         CIDDigestorFactory[C],
-        MulticodecFactory[Multicodec],
+        MulticodecIngest[Multicodec],
         MultihashFactory[MultihashAlgorithm]
     ): Boolean = cidEncoded =~ CID.digest(content, contentType, address.algorithm)
 
