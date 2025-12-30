@@ -1,5 +1,3 @@
-import GenerateTasks.autoImport.*
-
 val scala3Version = "3.7.3"
 
 inThisBuild(
@@ -9,8 +7,37 @@ inThisBuild(
   )
 )
 
+lazy val generateMulticodec = taskKey[Unit]("Rewrite the Multicodec enums from the source of truth")
+lazy val generateMultibase = taskKey[Unit]("Rewrite the Multibase enums from the source of truth")
+
 lazy val root = project
   .in(file("."))
+  .aggregate(milletre, multiformats)
+  .settings(
+    publish / skip := true
+  )
+
+lazy val milletre = project
+  .in(file("milletre"))
+  .settings(
+    name := "milletre",
+    version := "0.0.1",
+    organization := "org.sulteatro",
+    scalacOptions ++= Seq(
+      "-feature",
+      "-deprecation",
+      "-Wunused:imports",
+      "-source:3.7"
+    ),
+    libraryDependencies ++= Seq(
+      "org.scalameta" %% "munit" % "1.0.0" % Test
+    ),
+    packageSrc / publishArtifact := true
+  )
+
+lazy val multiformats = project
+  .in(file("multiformats"))
+  .dependsOn(milletre)
   .settings(
     name := "multiformats",
     version := "0.0.1",
@@ -25,7 +52,9 @@ lazy val root = project
       "org.scalameta" %% "munit" % "1.0.0" % Test,
       "org.bouncycastle" % "bcprov-jdk18on" % "1.80"
     ),
-    packageSrc / publishArtifact := true
+    packageSrc / publishArtifact := true,
+    generateMulticodec := (Compile / runMain).toTask(" multiformats.multicodec.generate").value,
+    generateMultibase := (Compile / runMain).toTask(" multiformats.multibase.generate").value
   )
 
 // Corrects a bug in tab completion in sbt console - see link to joern-cli

@@ -1,6 +1,4 @@
-package multiformats
-
-import multiformats.varint.VarInt
+package multiformats.varint
 
 class VarIntTests extends munit.FunSuite:
 
