@@ -39,7 +39,6 @@ enum MultibaseAlgorithm(val unicode: Int, val description: Option[String], val s
   case base64urlpad      extends MultibaseAlgorithm(0x0055, Some("RFC4648 with padding"), MultibaseStatus.`final`)
   case proquint          extends MultibaseAlgorithm(0x0070, Some("Proquint (https://arxiv.org/html/0901.4016)"), MultibaseStatus.experimental)
   case base256emoji      extends MultibaseAlgorithm(0x1F680, Some("base256 with custom alphabet using variable-sized-codepoints"), MultibaseStatus.experimental)
-
 // generateMultibase: end //
 // format: on
 

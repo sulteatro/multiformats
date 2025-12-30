@@ -42,7 +42,7 @@ object generator:
 
     val code = fileLines.take(startIndex + 1).mkString("\n")
       + "\n"
-      + elements.mkString("\n\n").indent(indentation)
+      + elements.mkString("\n\n").split("\n").map(" ".repeat(indentation) + _).mkString("\n")
       + "\n"
       + fileLines.drop(endIndex).mkString("\n")
       + "\n"

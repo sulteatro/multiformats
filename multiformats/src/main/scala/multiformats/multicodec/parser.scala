@@ -636,7 +636,6 @@ enum Multicodec(val tag: MulticodecTag, val code: VarInt, val status: Multicodec
   case es521_msig                      extends Multicodec(MulticodecTag.multisig, VarInt.encode(0xd0130a), MulticodecStatus.draft, Some("ECDSA P-521 Signature as Multisig"))
   case rs256_msig                      extends Multicodec(MulticodecTag.multisig, VarInt.encode(0xd0130b), MulticodecStatus.draft, Some("RS256 Signature as Multisig"))
   case scion                           extends Multicodec(MulticodecTag.multiaddr, VarInt.encode(0xd02000), MulticodecStatus.draft, Some("SCION Internet architecture"))
-
 // generateMulticodec: end //
 // format: on
 
