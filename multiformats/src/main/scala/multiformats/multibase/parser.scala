@@ -106,7 +106,6 @@ private[multiformats] object MultibaseAlgorithmFactory:
 //
 // Input validators: MultibaseIngest
 //
-
 trait MultibaseIngest[V] extends EitherConversion[V, String]
 
 object MultibaseIngest:

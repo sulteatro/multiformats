@@ -58,21 +58,25 @@ object constructor:
       ToHidden <: ConvertToFor[Hidden]
   ]:
     // Input is convertible to core hidden type
-    def isValid[C, Source](source: Source)(using toHidden: ToHidden[C, Source]): Boolean =
-      toHidden(source).isRight
+    def isValid[C]: [Source] => Source => ToHidden[C, Source] ?=> Boolean =
+      [Source] => (source: Source) => (toHidden: ToHidden[C, Source]) ?=> toHidden(source).isRight
 
-    def validated[C, Source](source: Source)(using
-        toHidden: ToHidden[C, Source]
-    ): Either[String, Shown[C]] = toHidden(source)
+    def validated[C]: [Source] => Source => ToHidden[C, Source] ?=> Either[String, Shown[C]] =
+      [Source] => (source: Source) => (toHidden: ToHidden[C, Source]) ?=> toHidden(source)
 
-    def ifValid[C, Source](source: Source)(using
-        ToHidden[C, Source]
-    ): Option[Shown[C]] = validated(source).toOption
+    def ifValid[C]: [Source] => Source => ToHidden[C, Source] ?=> Option[Shown[C]] =
+      [Source] =>
+        (source: Source) =>
+          (toHidden: ToHidden[C, Source]) ?=> validated[C](source).toOption
 
-    def apply[C, Source](source: Source)(using
-        ToHidden[C, Source]
-    ): Shown[C] =
-      validated(source).fold(error => throw ValidationError[Shown[C]](error.toString), identity)
+    def apply[C]: [Source] => Source => ToHidden[C, Source] ?=> Shown[C] =
+      [Source] =>
+        (source: Source) =>
+          (toHidden: ToHidden[C, Source]) ?=>
+            validated[C](source).fold(
+              error => throw ValidationError[Shown[C]](error.toString),
+              identity
+          )
 
   //
   // Functor case: opaque types with explicit type parameters determining conversion behavior
@@ -84,22 +88,7 @@ object constructor:
       Shown[_] >: Hidden <: Hidden,
       ToHidden <: ConvertTo[Hidden],
       FromHidden <: ConvertFrom[Hidden, Shown]
-  ](using validate: ToHidden[Hidden]):
-    // Input is of core hidden type
-    def isValid(source: Hidden): Boolean = validate(source).isRight
-
-    def validated[V](source: Hidden)(using toShown: FromHidden[V]): Either[String, Shown[V]] =
-      validate(source).flatMap(toShown)
-
-    def ifValid[V](source: Hidden)(using
-        FromHidden[V]
-    ): Option[Shown[V]] = validated(source).toOption
-
-    def apply[V](source: Hidden)(using
-        FromHidden[V]
-    ): Shown[V] =
-      validated(source).fold(error => throw ValidationError[Shown[V]](error.toString), identity)
-
+  ](using ToHidden[Hidden]):
     // Input is convertible to core hidden type
     def isValid[Source](source: Source)(using toHidden: ToHidden[Source]): Boolean =
       toHidden(source).isRight
@@ -118,6 +107,17 @@ object constructor:
         ToHidden[Source],
         FromHidden[V]
     ): Shown[V] =
+      validated(source).fold(error => throw ValidationError[Shown[V]](error.toString), identity)
+
+    // Input is of core hidden type
+    def validated[V](source: Hidden)(using toShown: FromHidden[V]): Either[String, Shown[V]] =
+      val toHidden = summon[ToHidden[Hidden]]
+      validated[Hidden, V](source)(using toHidden, toShown)
+
+    def ifValid[V](source: Hidden)(using FromHidden[V]): Option[Shown[V]] =
+      validated(source).toOption
+
+    def apply[V](source: Hidden)(using FromHidden[V]): Shown[V] =
       validated(source).fold(error => throw ValidationError[Shown[V]](error.toString), identity)
 
   // Alias for a MultiFactory with no ToHidden ingester

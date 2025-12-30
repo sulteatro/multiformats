@@ -85,11 +85,8 @@ private type CIDStateRepr[S] = S match
 trait CIDIngest[S, V] extends EitherConversion[V, CIDStateRepr[S]]
 
 object CIDIngest:
-  given CIDIngest[Raw, Array[Byte]] = v => parseCID(v).map(_ => v)
-
-  given ingestMb: CIDIngest[Encoded, Multibase] = v => parseCID(v.decode).map(_ => v)
-  given CIDIngest[Encoded, String] =
-    v => if v.contains(" - ") then translateCID(v) else Multibase.validated(v).flatMap(ingestMb)
+  given ingestRaw: CIDIngest[Raw, Array[Byte]] = v => parseCID(v).map(_ => v)
+  given CIDIngest[Raw, String] = v => ingestRaw(v.getBytes)
 
   given buildRawCID[T](using mci: MulticodecIngest[T]): CIDIngest[Raw, (Multihash, T)] =
     (address, typeSource) => mci(typeSource).flatMap(buildCID(_, address))
@@ -98,6 +95,10 @@ object CIDIngest:
     => (MulticodecIngest[T])
     => CIDIngest[Raw, (Array[Byte], T)] =
     (address, typeSource) => Multihash.validated(address).flatMap(buildRawCID(_, typeSource))
+
+  given ingestEnc: CIDIngest[Encoded, Multibase] = v => parseCID(v.decode).map(_ => v)
+  given CIDIngest[Encoded, String] =
+    v => if v.contains(" - ") then translateCID(v) else Multibase.validated(v).flatMap(ingestEnc)
 
   given buildEncodedCID[T, B](using
       mci: MulticodecIngest[T],
@@ -265,4 +266,4 @@ object CID extends CaseMultiConstructor[CIDStateRepr, CID, CIDIngest]:
     ): Boolean = cidEncoded =~ CID.digest(content, contentType, address.algorithm)
 
 extension (sc: StringContext)
-  def ci(args: Any*): CID[Encoded] = CID(sc.s(args*))
+  def ci(args: Any*): CID[Encoded] = CID[Encoded](sc.s(args*))
