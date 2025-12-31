@@ -1,5 +1,7 @@
 package multiformats.varint
 
+import milletre.constructor.ValidationError
+
 class VarIntTests extends munit.FunSuite:
 
   private def byteArray(bytes: Int*): Array[Byte] = Array(bytes*).map(_.toByte)
@@ -67,12 +69,12 @@ class VarIntTests extends munit.FunSuite:
 
   test("VarInt(Array[Byte]|BigInt|Long) throws for invalid encoded ints"):
     invalidVarInts.foreach { case (value, message) =>
-      interceptMessage[VarIntValidationError](message):
+      interceptMessage[ValidationError[VarInt]](message):
         VarInt(bigIntToByteArray(value))
-      interceptMessage[VarIntValidationError](message):
+      interceptMessage[ValidationError[VarInt]](message):
         VarInt(value)
       if value.toLong == value then
-        interceptMessage[VarIntValidationError](message):
+        interceptMessage[ValidationError[VarInt]](message):
           VarInt(value.toLong)
     }
 
@@ -119,115 +121,134 @@ class VarIntTests extends munit.FunSuite:
 
   test("VarInt.encode(Array[Byte]|BigInt|Long) throws for invalid integers"):
     invalidSourceInts.foreach { case (source, message) =>
-      interceptMessage[VarIntValidationError](message):
+      interceptMessage[ValidationError[VarInt]](message):
         VarInt.encode(source)
-      interceptMessage[VarIntValidationError](message):
+      interceptMessage[ValidationError[VarInt]](message):
         VarInt.encode(BigInt(source))
-      interceptMessage[VarIntValidationError](message):
+      interceptMessage[ValidationError[VarInt]](message):
         VarInt.encode(bigIntToByteArray(BigInt(source)))
     }
 
-  private def testFullSequenceResult(
+  private def testSequenceSuccess(
       source: Array[Byte],
-      count: Option[Int],
+      countOpt: Option[Int],
       start: Int,
       expected: (Array[Byte], Array[VarInt], Array[Byte])
   ) =
-    val result = VarInt.sequence(source, count, start)
-    assertEquals(result._1.toSeq, expected._1.toSeq)
-    assertEquals(result._2.toSeq, expected._2.toSeq)
-    assertEquals(result._3.toSeq, expected._3.toSeq)
+    def elemsToSeq(elems: (Array[Byte], Array[VarInt], Array[Byte]))
+        : (Seq[Byte], Seq[VarInt], Seq[Byte]) = (elems._1.toSeq, elems._2.toSeq, elems._3.toSeq)
 
-  private def testLeftSequenceResult(
+    val expectedSeqed = elemsToSeq(expected)
+    assertEquals(
+      VarInt.sequenceValidated(source, countOpt, start).map(elemsToSeq(_)),
+      Right(expectedSeqed)
+    )
+    assertEquals(
+      VarInt.sequenceIfValid(source, countOpt, start).map(elemsToSeq(_)),
+      Some(expectedSeqed)
+    )
+    assertEquals(elemsToSeq(VarInt.sequence(source, countOpt, start)), expectedSeqed)
+
+    val index = Math.max(start - 1, 0)
+    assertEquals(VarInt.fromValidated(source, index), Right(expected._2.head))
+    assertEquals(VarInt.fromIfValid(source, index), Some(expected._2.head))
+    assertEquals(VarInt.from(source, index), expected._2.head)
+
+    val count = countOpt.getOrElse(0)
+    if count > 1 then
+      val index = Math.max(start - 1, 0) + count - 1
+      assertEquals(VarInt.fromValidated(source, index), Right(expected._2.last))
+      assertEquals(VarInt.fromIfValid(source, index), Some(expected._2.last))
+      assertEquals(VarInt.from(source, index), expected._2.last)
+
+    if start == 0 then
+      assertEquals(
+        VarInt.sequenceValidated(source, count).map(elemsToSeq(_)),
+        Right(expectedSeqed)
+      )
+      assertEquals(
+        VarInt.sequenceIfValid(source, count).map(elemsToSeq(_)),
+        Some(expectedSeqed)
+      )
+      assertEquals(elemsToSeq(VarInt.sequence(source, count)), expectedSeqed)
+
+      if count == 0 then
+        assertEquals(
+          VarInt.sequenceValidated(source).map(elemsToSeq(_)),
+          Right(expectedSeqed)
+        )
+        assertEquals(
+          VarInt.sequenceIfValid(source).map(elemsToSeq(_)),
+          Some(expectedSeqed)
+        )
+        assertEquals(elemsToSeq(VarInt.sequence(source)), expectedSeqed)
+
+  private def testSequenceFailure(
       source: Array[Byte],
-      count: Int,
-      expected: (Array[VarInt], Array[Byte])
+      countOpt: Option[Int],
+      start: Int,
+      message: String
   ) =
-    val result = VarInt.sequence(source, count)
-    assertEquals(result._1.toSeq, expected._1.toSeq)
-    assertEquals(result._2.toSeq, expected._2.toSeq)
+    assertEquals(VarInt.sequenceValidated(source, countOpt, start), Left(message))
+    assertEquals(VarInt.sequenceIfValid(source, countOpt, start), None)
+    interceptMessage[ValidationError[VarInt]](message):
+      VarInt.sequence(source, countOpt, start)
 
-  test("VarInt.sequence(Array[Byte], Option[Int], Int) extracts varints from a byte array"):
+    if start == 0 then
+      val count = countOpt.getOrElse(0)
+      assertEquals(VarInt.sequenceValidated(source, count), Left(message))
+      assertEquals(VarInt.sequenceIfValid(source, count), None)
+      interceptMessage[ValidationError[VarInt]](message):
+        VarInt.sequence(source, count)
+
+  private def testFromFailure(
+      source: Array[Byte],
+      index: Int,
+      message: String
+  ) =
+    assertEquals(VarInt.fromValidated(source, index), Left(message))
+    assertEquals(VarInt.fromIfValid(source, index), None)
+    interceptMessage[ValidationError[VarInt]](message):
+      VarInt.from(source, index)
+
+  test("VarInt.sequence(...) for a valid input extracts varints from a byte array"):
     // varints: Array(0x01, 0x8001, 0x7f, 0xac02, 0x00)
     val test = byteArray(1, -128, 1, 127, -84, 2, 0)
 
     // extract the first element
-    testFullSequenceResult(
-      test,
-      Some(1),
-      0,
-      (byteArray(), Array(VarInt(0x01)), byteArray(-128, 1, 127, -84, 2, 0))
-    )
-    testLeftSequenceResult(
-      test,
-      1,
-      (Array(VarInt(0x01)), byteArray(-128, 1, 127, -84, 2, 0))
-    )
+    val expectOneHead = (byteArray(), Array(VarInt(0x01)), byteArray(-128, 1, 127, -84, 2, 0))
+    testSequenceSuccess(test, Some(1), 0, expectOneHead)
 
     // extract the first two elements
-    val expected = Array(VarInt(0x01), VarInt(0x8001))
-    testFullSequenceResult(
-      test,
-      Some(2),
-      0,
+    val expectTwoHead =
       (byteArray(), Array(VarInt(0x01), VarInt(0x8001)), byteArray(127, -84, 2, 0))
-    )
-    testLeftSequenceResult(
-      test,
-      2,
-      (Array(VarInt(0x01), VarInt(0x8001)), byteArray(127, -84, 2, 0))
-    )
+    testSequenceSuccess(test, Some(2), 0, expectTwoHead)
 
     // extract the 2nd and 3rd varints
-    testFullSequenceResult(
-      test,
-      Some(2),
-      3,
-      (byteArray(1, -128, 1), Array(VarInt(0x7f), VarInt(0xac02)), byteArray(0))
-    )
+    val expectTwoMiddle = (byteArray(1, -128, 1), Array(VarInt(0x7f), VarInt(0xac02)), byteArray(0))
+    testSequenceSuccess(test, Some(2), 3, expectTwoMiddle)
 
     // extract all elements
-    val result: Array[VarInt] = Array(0x01, 0x8001, 0x7f, 0xac02, 0x00).map(VarInt(_))
-
-    testFullSequenceResult(
-      test,
-      Some(5),
-      0,
-      (byteArray(), result, byteArray())
-    )
-    testFullSequenceResult(
-      test,
-      None,
-      0,
-      (byteArray(), result, byteArray())
-    )
-    testLeftSequenceResult(
-      test,
-      5,
-      (result, byteArray())
-    )
-    assertEquals(VarInt.sequence(test).toSeq, result.toSeq)
+    val expectAll =
+      (byteArray(), Array(0x01, 0x8001, 0x7f, 0xac02, 0x00).map(VarInt(_)), byteArray())
+    testSequenceSuccess(test, Some(5), 0, expectAll)
 
     // Final bytes that cannot be converted to varint are left alone
-    // (also meaning they are ignored by the extract-all version)
-    testFullSequenceResult(
-      test :+ 0x80.toByte,
-      Some(5),
-      0,
-      (byteArray(), result, byteArray(0x80))
-    )
-    testFullSequenceResult(
-      test :+ 0x80.toByte,
-      None,
-      0,
-      (byteArray(), result, byteArray(0x80))
-    )
-    testLeftSequenceResult(
-      test :+ 0x80.toByte,
-      5,
-      (result, byteArray(0x80))
-    )
-    assertEquals(VarInt.sequence(test :+ 0x80.toByte).toSeq, result.toSeq)
+    val expectAllValid =
+      (byteArray(), Array(0x01, 0x8001, 0x7f, 0xac02, 0x00).map(VarInt(_)), byteArray(0x80))
+    testSequenceSuccess(test :+ 0x80.toByte, Some(5), 0, expectAllValid)
+
+  test("VarInt.sequence(...) executes failure modes when `count` VarInts could not be extracted"):
+    // varints: Array(0x01, 0x8001, 0x7f, 0xac02, 0x00)
+    val test = byteArray(1, -128, 1, 127, -84, 2, 0, 128)
+
+    // extract one VarInt starting at the last element
+    testSequenceFailure(test, Some(1), 7, "Cannot extract 1 VarInt starting at 7")
+    testFromFailure(test, 6, "Cannot extract 7 VarInts starting at 0")
+
+    val tooManyMessage = "Cannot extract 6 VarInts starting at 0"
+    testSequenceFailure(test, Some(6), 0, tooManyMessage)
+    testFromFailure(test, 5, tooManyMessage)
 
   test("VarInt congruency (=~, !~) is just typed (in)equality"):
     validVarInts.foreach { case (value, (source, _, _, _)) =>

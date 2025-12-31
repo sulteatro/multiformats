@@ -23,8 +23,10 @@ val contentTags: Set[MulticodecTag] = Set(MulticodecTag.ipld)
 //
 
 private def parseCID(cid: Array[Byte]): Either[String, (Multicodec, Multihash)] =
-  VarInt.sequence(cid, 2) match
-    case (Array(cidCode, contentCode), mhBytes) =>
+  VarInt.sequenceValidated(cid, 2).orElse(
+    Left("Invalid CID format: could not extract Multicodec code varints")
+  ).flatMap {
+    case (Array[Byte](), Array(cidCode, contentCode), mhBytes) =>
       for
         cidCodec <- Multicodec.validated(cidCode).filterOrElse(
           code => code.equals(version),
@@ -36,8 +38,7 @@ private def parseCID(cid: Array[Byte]): Either[String, (Multicodec, Multihash)] 
         )
         contentAddress <- Multihash.validated(mhBytes)
       yield (contentCodec, contentAddress)
-    case _ =>
-      Left("Invalid CID format: could not extract Multicodec code varints")
+  }
 
 private def buildCID(
     contentType: Multicodec,
@@ -83,7 +84,6 @@ private type CIDStateRepr[S] = S match
 // Input validators: CIDIngest
 //
 trait CIDIngest[S, V] extends EitherConversion[V, CIDStateRepr[S]]
-
 object CIDIngest:
   given ingestRaw: CIDIngest[Raw, Array[Byte]] = v => parseCID(v).map(_ => v)
   given CIDIngest[Raw, String] = v => ingestRaw(v.getBytes)
@@ -117,7 +117,6 @@ object CIDIngest:
 // Input digestors: CIDDigest
 //
 trait CIDDigest[S, V] extends EitherConversion[V, CIDStateRepr[S]]
-
 object CIDDigest:
   given createRawCID[T, H](using
       mci: MulticodecIngest[T],

@@ -73,16 +73,17 @@ object MultihashIngest:
   // checks that the provided byte array is a valid multihash
   given MultihashIngest[Array[Byte]] =
     bytes =>
-      VarInt.sequence(bytes, 2) match
-        case (Array(code, size), digest) =>
-          Multicodec.validated(code)
-            .flatMap(hashCodec => MultihashAlgorithm.getByCode(hashCodec.code))
-            .filterOrElse(
-              _ => size.decode.toInt.equals(digest.length),
-              s"Mismatch between expected and realized digest sizes: $size vs ${digest.length}"
-            ).map(_ => bytes)
-        case _ =>
-          Left("Invalid multihash format: could not extract code & size varints")
+      VarInt.sequenceValidated(bytes, 2)
+        .orElse(Left("Invalid multihash format: could not extract code & size varints"))
+        .flatMap { case (_, Array(code, size), digest) =>
+          Right(code).filterOrElse(
+            _ => size.decode.toInt.equals(digest.length),
+            s"Mismatch between expected and realized digest sizes: $size vs ${digest.length}"
+          )
+        }
+        .flatMap(Multicodec.validated)
+        .flatMap(hashCodec => MultihashAlgorithm.getByCode(hashCodec.code))
+        .map(_ => bytes)
 
   given [A] => (af: MultihashAlgorithmFactory[A]) => MultihashIngest[(Array[Byte], A)] =
     (bytes, algorithm) => af(algorithm).map(buildWithCodec(bytes, _))
@@ -137,21 +138,20 @@ object Multihash extends MultiConstructor[Array[Byte], Multihash, MultihashInges
 
     def toBytes: Array[Byte] = mh
 
-    def code: VarInt = VarInt.sequence(mh, 1).head.head
+    def code: VarInt = VarInt.from(mh, 0)
     def algorithm: MultihashAlgorithm = MultihashAlgorithm.getByCode(code).toOption.get
 
-    def size: Int = VarInt.sequence(mh, 2).head.last.decode.toInt
+    def size: Int = VarInt.from(mh, 1).decode.toInt
     def digest: Array[Byte] = VarInt.sequence(mh, 2).last
 
     def toHumanReadable: String =
       VarInt.sequence(mh, 2) match
-        case (Array(mhc, mhs), mhd) =>
-          Vector(
-            MultihashAlgorithm.getByCode(mhc).map(_.label).toOption.get,
-            mhs.decode * 8,
-            new String(Base16.encode(mhd))
-          ).mkString("-")
-        case (ba, via) =>
+        case (Array(), Array(mhc, mhs), mhd) =>
+          MultihashAlgorithm.getByCode(mhc).fold(
+            error => throw ValidationError[Multihash](error),
+            code => Vector(code.label, mhs.decode * 8, Base16.encode(mhd)).mkString("-")
+          )
+        case (_, ba, via) =>
           throw ValidationError[Multihash](s"Unreachable case, bytes: ${ba}, varints: ${via}")
 
 extension (sc: StringContext)

@@ -656,14 +656,13 @@ object MulticodecIngest:
   private def getByName(n: String): Either[String, Multicodec] =
     nameToCodec.get(n).toRight(s"Invalid multicodec name: '$n'")
 
-  given MulticodecIngest[Multicodec] = v => Right(v)
-  given MulticodecIngest[VarInt] = v => getByCode(v)
-  given MulticodecIngest[String] = v => getByName(v)
+  given MulticodecIngest[Multicodec] = Right(_)
+  given MulticodecIngest[VarInt] = getByCode(_)
+  given MulticodecIngest[String] = getByName(_)
   given MulticodecIngest[Array[Byte]] =
-    v =>
-      VarInt.sequence(v, 1) match
-        case (Array(code), _) => getByCode(code)
-        case _                => Left("Could not extract a varint from bytes")
+    VarInt.fromValidated(_)
+      .orElse(Left("Could not extract a varint from bytes"))
+      .flatMap(getByCode)
 
 //
 // Public object interface for getting a multicodec from a value
