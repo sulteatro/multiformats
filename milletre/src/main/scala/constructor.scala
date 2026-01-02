@@ -10,7 +10,7 @@ object constructor:
       private val cause: Throwable = None.orNull
   ) extends Exception(message, cause)
 
-  trait EitherConversion[From, To] extends Conversion[From, Either[String, To]]
+  type EitherConversion[From, To] = Conversion[From, Either[String, To]]
 
   given [F, T >: F <: F] => EitherConversion[F, T] = Right(_)
 
