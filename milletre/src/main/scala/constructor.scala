@@ -10,7 +10,7 @@ object constructor:
       private val cause: Throwable = None.orNull
   ) extends Exception(message, cause)
 
-  trait EitherConversion[From, To] extends Conversion[From, Either[String, To]]
+  type EitherConversion[From, To] = Conversion[From, Either[String, To]]
 
   given [F, T >: F <: F] => EitherConversion[F, T] = Right(_)
 
@@ -93,32 +93,28 @@ object constructor:
     def isValid[Source](source: Source)(using toHidden: ToHidden[Source]): Boolean =
       toHidden(source).isRight
 
-    def validated[Source, V](source: Source)(using
-        toHidden: ToHidden[Source],
+    def validated[V](using
         toShown: FromHidden[V]
-    ): Either[String, Shown[V]] = toHidden(source).flatMap(toShown)
+    ): [Source] => Source => (ToHidden[Source]) ?=> Either[String, Shown[V]] =
+      [Source] =>
+        (source: Source) =>
+          (toHidden: ToHidden[Source]) ?=> toHidden(source).flatMap(toShown)
 
-    def ifValid[Source, V](source: Source)(using
-        ToHidden[Source],
-        FromHidden[V]
-    ): Option[Shown[V]] = validated(source).toOption
+    def ifValid[V](using
+        toShown: FromHidden[V]
+    ): [Source] => Source => (ToHidden[Source]) ?=> Option[Shown[V]] =
+      [Source] => (source: Source) => (toHidden: ToHidden[Source]) ?=> validated(source).toOption
 
-    def apply[Source, V](source: Source)(using
-        ToHidden[Source],
-        FromHidden[V]
-    ): Shown[V] =
-      validated(source).fold(error => throw ValidationError[Shown[V]](error.toString), identity)
-
-    // Input is of core hidden type
-    def validated[V](source: Hidden)(using toShown: FromHidden[V]): Either[String, Shown[V]] =
-      val toHidden = summon[ToHidden[Hidden]]
-      validated[Hidden, V](source)(using toHidden, toShown)
-
-    def ifValid[V](source: Hidden)(using FromHidden[V]): Option[Shown[V]] =
-      validated(source).toOption
-
-    def apply[V](source: Hidden)(using FromHidden[V]): Shown[V] =
-      validated(source).fold(error => throw ValidationError[Shown[V]](error.toString), identity)
+    def apply[V](using
+        toShown: FromHidden[V]
+    ): [Source] => Source => (ToHidden[Source]) ?=> Shown[V] =
+      [Source] =>
+        (source: Source) =>
+          (toHidden: ToHidden[Source]) ?=>
+            validated(source).fold(
+              error => throw ValidationError[Shown[V]](error.toString),
+              identity
+          )
 
   // Alias for a MultiFactory with no ToHidden ingester
   type SimpleFactory[H, S[_] >: H <: H, F <: ConvertFrom[H, S]] = MultiFactory[H, S, Nothing, F]

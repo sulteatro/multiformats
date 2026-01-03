@@ -1,16 +1,16 @@
 package multiformats.varint
 
-final case class VarIntValidationError(
-    private val message: String = "",
-    private val cause: Throwable = None.orNull
-) extends Exception(message, cause)
+import milletre.constructor.ClearConstructor
+import milletre.constructor.EitherConversion
+import milletre.constructor.ValidationError
 
 //
 // Implementation details:
 // * extractFromBytes attempts to extract a varint from a byte array starting at `start`
 // * encodeFromLong attempts to encode an integer as a varint (all valid varints fit in a Long)
 //
-val b0: Byte = 0.toByte
+private val b0: Byte = 0.toByte
+
 val MaxLengthInBytes: Int = 9
 val BitEntropy: Int = 7
 
@@ -21,7 +21,7 @@ private def bigIntToByteArray(bi: BigInt): Array[Byte] =
 private def byteArrayAsString(bytes: Array[Byte], start: Int): String =
   bytes.drop(start).map(_.toString).mkString("Array(", ", ", ")")
 
-def extractFromBytes(value: Array[Byte], start: Int): Either[String, (VarInt, Int)] =
+private def extractFromBytes(value: Array[Byte], start: Int): Either[String, (VarInt, Int)] =
   Some(value.indexWhere(b => (b & 0x80).equals(0), start))
     .filter(_ > -1)
     .toRight(s"Invalid unsigned varint: '${byteArrayAsString(value, start)}'")
@@ -54,85 +54,83 @@ private def encodeFromLong(source: Long): Either[String, VarInt] =
     )
     .map { case (barr, _) => BigInt(1, barr) }
 
-//
-// Type-variadic construction via typeclass
-//
-sealed trait VarIntFactory[V]:
-  def toByteArray(value: V): Array[Byte]
-  def toLong(value: V): Long
+type VarIntElements = (prefix: Array[Byte], result: Array[VarInt], suffix: Array[Byte])
 
-  def validate(value: V): Either[String, VarInt] = extractFromBytes(toByteArray(value), 0).map(_._1)
-  def encode(value: V): Either[String, VarInt] = encodeFromLong(toLong(value))
+private def extractSequence(
+    source: Array[Byte],
+    countOpt: Option[Int],
+    start: Int
+): Either[String, VarIntElements] =
+  val byteSize: Int = source.size
+  val (varints, stop) =
+    Iterator.iterate((VarInt(0), start, 0)) {
+      case (vi, index, nvarints) =>
+        extractFromBytes(source, index).toOption.getOrElse((vi, byteSize + 1)) :* nvarints + 1
+    }.drop(1).takeWhile {
+      case (_, index, nvarints) =>
+        !countOpt.exists(nvarints > _) && index < byteSize + 1
+    }.map(_.init).toArray.unzip
 
-private object VarIntFactory:
-  given VarIntFactory[Array[Byte]] =
-    new VarIntFactory[Array[Byte]]:
-      def toByteArray(value: Array[Byte]): Array[Byte] = value
-      def toLong(value: Array[Byte]): Long = BigInt(1, value).toLong
+  countOpt
+    .filterNot(_ == varints.size)
+    .fold(Right((source.take(start), varints, source.drop(stop.lastOption.getOrElse(0))))) {
+      count =>
+        Left(s"Cannot extract $count VarInt${if count > 1 then "s" else ""} starting at $start")
+    }
 
-  given VarIntFactory[BigInt] =
-    new VarIntFactory[BigInt]:
-      def toByteArray(value: BigInt): Array[Byte] = bigIntToByteArray(value)
-      def toLong(value: BigInt): Long = value.toLong
+trait VarIntIngest[V] extends EitherConversion[V, VarInt]
+object VarIntIngest:
+  given VarIntIngest[VarInt] = Right(_)
 
-  given VarIntFactory[Long] =
-    new VarIntFactory[Long]:
-      def toByteArray(value: Long): Array[Byte] = bigIntToByteArray(BigInt(value))
-      def toLong(value: Long): Long = value
+  given fromBytes: VarIntIngest[Array[Byte]] = extractFromBytes(_, 0).map(_._1)
+  given fromBigInt: VarIntIngest[BigInt] = v => fromBytes(bigIntToByteArray(v))
+  given VarIntIngest[Long] = v => fromBigInt(BigInt(v))
+  given VarIntIngest[Int] = v => fromBigInt(BigInt(v))
 
-  given VarIntFactory[Int] =
-    new VarIntFactory[Int]:
-      def toByteArray(value: Int): Array[Byte] = bigIntToByteArray(BigInt(value))
-      def toLong(value: Int): Long = value.toLong
+trait VarIntEncode[V] extends EitherConversion[V, VarInt]
+object VarIntEncode:
+  given fromLong: VarIntEncode[Long] = encodeFromLong(_)
+  given fromBigInt: VarIntEncode[BigInt] = v => fromLong(v.toLong)
+  given VarIntEncode[Int] = v => fromLong(v.toLong)
+  given VarIntEncode[Array[Byte]] = v => fromBigInt(BigInt(1, v))
+
+trait VarIntSequence[V] extends EitherConversion[V, VarIntElements]
+object VarIntSequence:
+  given extract: VarIntSequence[(Array[Byte], Option[Int], Int)] = extractSequence.tupled(_)
+  given VarIntSequence[(Array[Byte], Int)] = (s, c) => extract(s, Some(c), 0)
+  given VarIntSequence[Array[Byte]] = extract(_, None, 0)
 
 //
 // Public object interface: VarInt
 //
 opaque type VarInt = BigInt
 
-object VarInt:
-  import VarIntFactory.given
-
-  //
-  // Basic constructors check that the value provided is a valid varint
-  //
-  def validated[T](value: T)(using c: VarIntFactory[T]): Either[String, VarInt] = c.validate(value)
-  def ifValid[T](value: T)(using c: VarIntFactory[T]): Option[VarInt] = c.validate(value).toOption
-  def apply[T](value: T)(using c: VarIntFactory[T]): VarInt =
-    c.validate(value).fold(error => throw VarIntValidationError(error), identity)
+object VarInt extends ClearConstructor[VarInt, VarIntIngest]:
 
   //
   // Encoding constructors attempt to convert the value provided to a varint
   //
-  def encodeValidated[T](value: T)(using c: VarIntFactory[T]): Either[String, VarInt] =
-    c.encode(value)
-  def encodeIfValid[T](value: T)(using c: VarIntFactory[T]): Option[VarInt] =
-    c.encode(value).toOption
-  def encode[T](value: T)(using c: VarIntFactory[T]): VarInt =
-    c.encode(value).fold(error => throw VarIntValidationError(error), identity)
+  def encodeValidated[T](value: T)(using encoder: VarIntEncode[T]): Either[String, VarInt] =
+    encoder(value)
+  def encodeIfValid[T](value: T)(using VarIntEncode[T]): Option[VarInt] =
+    encodeValidated(value).toOption
+  def encode[T](value: T)(using VarIntEncode[T]): VarInt =
+    encodeValidated(value).fold(error => throw ValidationError[VarInt](error), identity)
 
   // Sequence constructors extract a sequence of varints from a byte array
-  def sequence(
-      source: Array[Byte],
-      count: Option[Int],
-      start: Int
-  ): (Array[Byte], Array[VarInt], Array[Byte]) =
-    val byteSize: Int = source.size
-    val (varints, stop) =
-      Iterator.iterate((VarInt(0), start, 0)) {
-        case (vi, index, nvarints) =>
-          extractFromBytes(source, index).toOption.getOrElse((vi, byteSize + 1)) :* nvarints + 1
-      }.drop(1).takeWhile {
-        case (_, index, nvarints) =>
-          !count.exists(nvarints > _) && index < byteSize + 1
-      }.map(_.init).toArray.unzip
+  def sequenceValidated[T](value: T)(using seq: VarIntSequence[T]): Either[String, VarIntElements] =
+    seq(value)
+  def sequenceIfValid[T](value: T)(using VarIntSequence[T]): Option[VarIntElements] =
+    sequenceValidated(value).toOption
+  def sequence[T](value: T)(using VarIntSequence[T]): VarIntElements =
+    sequenceValidated(value).fold(error => throw ValidationError[VarInt](error), identity)
 
-    (source.take(start), varints, source.drop(stop.lastOption.getOrElse(0)))
-
-  def sequence(source: Array[Byte], count: Int): (Array[VarInt], Array[Byte]) =
-    sequence(source, Some(count), 0).tail
-
-  def sequence(source: Array[Byte]): Array[VarInt] = sequence(source, None, 0)._2
+  def fromValidated(source: Array[Byte], at: Int = 0): Either[String, VarInt] =
+    summon[VarIntSequence[(Array[Byte], Int)]](source, at + 1).map(_.result.last)
+  def fromIfValid[T](source: Array[Byte], start: Int = 0): Option[VarInt] =
+    fromValidated(source, start).toOption
+  def from[T](source: Array[Byte], start: Int = 0): VarInt =
+    fromValidated(source, start).fold(error => throw ValidationError[VarInt](error), identity)
 
   extension (vi: VarInt)
     def =~(other: VarInt): Boolean = vi.equals(other)
