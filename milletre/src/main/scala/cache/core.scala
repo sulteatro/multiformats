@@ -1,7 +1,5 @@
 package milletre.cache
 
-import scala.collection.concurrent.TrieMap as ConcurrentMap
-
 //
 // HasCacheOps: typeclass for core caching functionality
 //
@@ -14,7 +12,7 @@ trait HasCacheOps[C, K, V]:
   def clear(impl: Impl): Unit
 
 object HasCacheOps:
-  given [K, V] => HasCacheOps[ConcurrentMap[K, CacheEntry[V]], K, V]:
+  given [K, V] => HasCacheOps[InMemory[K, V], K, V]:
     override def get(impl: Impl, k: K): Option[V] =
       impl.get(k).map { e =>
         impl.put(k, e.access)
@@ -35,25 +33,20 @@ object HasCacheOps:
     override def clear(impl: Impl): Unit = ops.clear(impl)
 
 //
-// Definition of the default in-memory implementation
-//
-type InMemory[K, V] = ConcurrentMap[K, CacheEntry[V]]
-object InMemory:
-  def empty[K, V] = ConcurrentMap.empty[K, CacheEntry[V]]
-
-//
 // Cache: Unbounded persistent cache with statistics
 // all caches with eviction logic should extend this
 //
-trait Cache[C, K, V](using ops: HasCacheOps[C, K, V]):
-  protected val impl: C
+trait Cache[C, K, V](protected val impl: C)(using ops: HasCacheOps[C, K, V]):
+  import CacheEntry.*
 
   def get(k: K): Option[V] = ops.get(impl, k)
   def set(k: K, v: V): V = ops.set(impl, k, v)
   def pop(k: K): Option[V] = ops.pop(impl, k)
   def clear: Unit = ops.clear(impl)
 
-object Cache:
-  def inMemory[K, V](using HasCacheOps[InMemory[K, V], K, V]): Cache[InMemory[K, V], K, V] =
-    new Cache[InMemory[K, V], K, V]:
-      val impl: InMemory[K, V] = ConcurrentMap.empty[K, CacheEntry[V]]
+  // Operation that only applies if TTL or size ops are attached
+  def prune: Unit = ???
+
+  // Operations that only apply if TTL ops are attached
+  def set(k: K, v: V, ttl: Timedelta): V = ???
+  def ttl(k: K, ttl: Timedelta): Option[Timestamp] = ???
